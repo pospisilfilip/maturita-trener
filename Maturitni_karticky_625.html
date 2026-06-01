@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Maturitní kartičky – KB, právo a ekonomika</title>
+<style>
+  :root{
+    --bg:#0f1729; --panel:#16213e; --card:#1b2a4a; --card2:#22345c;
+    --ink:#e8eef7; --muted:#9fb0c9; --line:#2c3e63;
+    --blue:#4a90e2; --blue2:#2e5496; --green:#3ec77a; --red:#e25a5a;
+    --gold:#f2c14e; --accent:#5b9bff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:linear-gradient(160deg,#0c1322,#0f1729 40%,#101b33);
+    color:var(--ink); min-height:100vh; padding:18px;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .wrap{width:100%; max-width:840px}
+  header{text-align:center; margin-bottom:14px}
+  h1{font-size:22px; font-weight:700; letter-spacing:.2px}
+  h1 .sub{display:block; font-size:13px; font-weight:400; color:var(--muted); margin-top:4px}
+
+  /* Ovládací panel */
+  .controls{
+    background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:14px; margin-bottom:16px;
+  }
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .row + .row{margin-top:10px}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:5px}
+  select{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); font-size:14px; cursor:pointer;
+  }
+  .grow{flex:1; min-width:200px}
+  .btn{
+    padding:10px 14px; border-radius:10px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); font-size:13px; cursor:pointer;
+    transition:.15s; white-space:nowrap;
+  }
+  .btn:hover{background:var(--card2); border-color:var(--accent)}
+  .btn.active{background:var(--blue2); border-color:var(--accent); color:#fff}
+  .toggle-row{display:flex; gap:8px; flex-wrap:wrap}
+
+  /* Progress */
+  .progress{display:flex; align-items:center; gap:12px; margin-bottom:12px; font-size:13px; color:var(--muted)}
+  .bar{flex:1; height:8px; background:var(--card); border-radius:99px; overflow:hidden; border:1px solid var(--line)}
+  .bar > i{display:block; height:100%; width:0%; background:linear-gradient(90deg,var(--blue),var(--green)); transition:width .3s}
+  .stats{display:flex; gap:14px; font-size:12px}
+  .stats b{color:var(--ink)}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .dot.g{background:var(--green)} .dot.r{background:var(--red)} .dot.n{background:var(--muted)}
+
+  /* Karta */
+  .stage{perspective:1600px; margin:0 auto 14px}
+  .flip{
+    position:relative; width:100%; min-height:320px; cursor:pointer;
+    transform-style:preserve-3d; transition:transform .5s cubic-bezier(.2,.7,.2,1);
+  }
+  .flip.flipped{transform:rotateY(180deg)}
+  .face{
+    position:absolute; inset:0; backface-visibility:hidden; -webkit-backface-visibility:hidden;
+    border-radius:18px; padding:30px 28px; display:flex; flex-direction:column;
+    border:1px solid var(--line); box-shadow:0 12px 40px rgba(0,0,0,.45);
+  }
+  .face .tag{font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+  .face .topic{font-size:12px; color:var(--accent); margin-bottom:18px; font-weight:600}
+  .face .content{flex:1; display:flex; align-items:center}
+  .face .q{font-size:21px; font-weight:600; line-height:1.45}
+  .face .a{font-size:17px; line-height:1.6; color:#eef3fb}
+  .face .hint{font-size:12px; color:var(--muted); margin-top:16px; text-align:center}
+  .front{background:linear-gradient(160deg,var(--card),#16264a)}
+  .back{background:linear-gradient(160deg,#1d3357,#22406e); transform:rotateY(180deg)}
+  .back .tag{color:#bcd2f5}
+
+  /* Navigace */
+  .nav{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px}
+  .nav .counter{font-size:14px; color:var(--muted); min-width:90px; text-align:center}
+  .navbtn{
+    flex:1; padding:12px; border-radius:12px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); font-size:15px; cursor:pointer; font-weight:600; transition:.15s;
+  }
+  .navbtn:hover{background:var(--card2); border-color:var(--accent)}
+  .rate{display:flex; gap:10px; margin-bottom:10px}
+  .rate .btn{flex:1; font-weight:600; font-size:14px}
+  .rate .know{border-color:#2c6b46} .rate .know:hover{background:rgba(62,199,122,.15); border-color:var(--green)}
+  .rate .dunno{border-color:#7a3636} .rate .dunno:hover{background:rgba(226,90,90,.15); border-color:var(--red)}
+  .rate .know.on{background:rgba(62,199,122,.2); border-color:var(--green); color:#a8f0c6}
+  .rate .dunno.on{background:rgba(226,90,90,.2); border-color:var(--red); color:#f3b6b6}
+
+  footer{font-size:11px; color:var(--muted); text-align:center; margin-top:6px; line-height:1.6}
+  kbd{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:11px}
+  .empty{text-align:center; padding:60px 20px; color:var(--muted)}
+
+  @media (max-width:560px){
+    .face{padding:24px 20px}
+    .face .q{font-size:19px}
+    .face .a{font-size:16px}
+    .flip{min-height:300px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Maturitní kartičky
+      <span class="sub">Kybernetická bezpečnost, právo a ekonomika · 25 okruhů</span>
+    </h1>
+  </header>
+
+  <div class="controls">
+    <div class="row">
+      <div class="grow">
+        <label>Okruh</label>
+        <select id="topicSel"></select>
+      </div>
+      <div>
+        <label>Pořadí</label>
+        <div class="toggle-row">
+          <button class="btn active" id="orderSeq">Postupně</button>
+          <button class="btn" id="orderShuf">Zamíchat</button>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="toggle-row">
+        <button class="btn" id="filterAll">Vše</button>
+        <button class="btn" id="filterTodo">Jen neumím / nehodnoceno</button>
+        <button class="btn" id="resetProg">Vynulovat pokrok</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress">
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="stats">
+      <span><span class="dot g"></span><b id="cntKnow">0</b> umím</span>
+      <span><span class="dot r"></span><b id="cntDunno">0</b> neumím</span>
+      <span><span class="dot n"></span><b id="cntNew">0</b> nové</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="flip" id="flip">
+      <div class="face front">
+        <div class="tag">Otázka</div>
+        <div class="topic" id="fTopic"></div>
+        <div class="content"><div class="q" id="qText"></div></div>
+        <div class="hint">Klikni nebo stiskni <kbd>mezerník</kbd> pro odpověď</div>
+      </div>
+      <div class="face back">
+        <div class="tag">Odpověď</div>
+        <div class="topic" id="bTopic"></div>
+        <div class="content"><div class="a" id="aText"></div></div>
+        <div class="hint">Klikni pro otázku</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rate">
+    <button class="btn dunno" id="rateDunno">✗ Neumím</button>
+    <button class="btn know" id="rateKnow">✓ Umím</button>
+  </div>
+
+  <div class="nav">
+    <button class="navbtn" id="prevBtn">← Předchozí</button>
+    <div class="counter" id="counter">0 / 0</div>
+    <button class="navbtn" id="nextBtn">Další →</button>
+  </div>
+
+  <footer>
+    Klávesy: <kbd>←</kbd> <kbd>→</kbd> navigace · <kbd>mezerník</kbd> otočit ·
+    <kbd>1</kbd> neumím · <kbd>2</kbd> umím<br>
+    Pokrok se ukládá jen po dobu otevření stránky.
+  </footer>
+</div>
+
+<script>
+/* === DATA (vloženo níže) === */
+// Spojená data všech karet
+const DECK = [
+{ t: "1. Legislativa KB", cards: [
+    ["Co je kybernetická bezpečnost (KB)?", "Ochrana informačních systémů, sítí, zařízení a dat před útoky, poškozením, zneužitím nebo neoprávněným přístupem."],
+    ["Do které oblasti práva patří legislativa KB?", "Do práva veřejného, konkrétně správního – upravuje vztah mezi orgánem veřejné moci (stát, NÚKIB) a FO/PO, kde stát vystupuje jako nadřazený subjekt prosazující veřejný zájem."],
+    ["Který zákon nově upravuje KB v ČR?", "Nový zákon o kybernetické bezpečnosti (nZKB), zákon č. 264/2025 Sb., který transponuje směrnici EU NIS2. Dohled má NÚKIB."],
+    ["Co je směrnice NIS2 a jak funguje?", "Směrnice EU pro harmonizaci kyberbezpečnosti. Adresátem je členský stát, který musí její požadavky promítnout do národního práva. Stanovuje cíl (cesta je na státu) a zpravidla minimální požadavky. Většina nZKB z ní vychází."],
+    ["Co upravuje nZKB (předmět úpravy)?", "Práva a povinnosti osob, organizačních složek státu a orgánů veřejné moci v oblasti zajišťování KB a působnost a pravomoci NÚKIB a dalších orgánů."],
+    ["Na koho se nZKB vztahuje?", "Na osoby usazené na území ČR a na osoby, které v ČR zajišťují sítě nebo poskytují služby elektronických komunikací bez ohledu na místo usazení. Nevztahuje se na systémy nakládající s utajovanými informacemi."],
+    ["Co je regulovaná služba podle nZKB?", "Služba, kterou jako regulovanou určí NÚKIB rozhodnutím (registrací). Nestačí, že je důležitá – musí být oficiálně zaregistrovaná."],
+    ["Jaké jsou základní podmínky registrace regulované služby?", "Služba patří do důležitého odvětví (energetika, doprava, zdravotnictví, finance, IT, veřejná správa…, celkem 15 resp. 22 odvětví) a poskytovatel je střední/velký podnik nebo je jinak významný pro stát."],
+    ["Kdy může být regulovaný i menší subjekt?", "Pokud je jediným poskytovatelem služby v ČR, výpadek by ohrozil bezpečnost státu či zdraví lidí, dopad by zasáhl 125 000+ osob, nebo jde o kritickou infrastrukturu. Vede to k vyššímu režimu."],
+    ["Jaký je rozdíl mezi vyšším a nižším režimem?", "Vyšší režim = více povinností a detailní řízení (analýza rizik, audity, dodavatelé, logování, kryptografie). Nižší režim = základní povinná opatření (rizika, přístupy, incidenty, bezpečnost sítí a aplikací), analýza rizik není povinná."],
+    ["Jaké jsou hlavní povinnosti poskytovatele regulované služby?", "Ohlásit službu (do 60 dnů), hlásit kontaktní údaje (do 30 dnů), stanovit rozsah řízení KB, zavádět bezpečnostní opatření, hlásit incidenty a informovat uživatele o incidentech a hrozbách."],
+    ["Co je aktivum a primární aktivum podle nZKB?", "Aktivum = prostředek, osoba nebo činnost související se zpracováním dat. Primární aktivum = poskytovaná služba nebo informace; na ně navazují podpůrná aktiva."],
+    ["Jak se hlásí incidenty ve vyšším režimu?", "NÚKIBu se hlásí incidenty, u nichž nelze do 24 hodin vyloučit úmyslné zavinění. Při významném dopadu následuje hlášení do 72 hodin a závěrečná zpráva do 30 dnů (max. 60)."],
+    ["Jak se hlásí incidenty v nižším režimu?", "Národnímu CERT se hlásí incidenty s významným dopadem, u nichž nelze do 24 hodin vyloučit úmyslné zavinění. Významný dopad vyhodnocuje poskytovatel sám podle vyhlášky."],
+    ["Co je významná hrozba?", "Hrozba schopná závažně ovlivnit systémy nebo uživatele a způsobit značnou újmu. O významné hrozbě musí poskytovatel informovat uživatele a doporučit kroky ke zmírnění."],
+    ["Co je strategicky významná služba?", "Zvláštní kategorie regulovaných služeb, jejichž narušení může ohrozit bezpečnost státu nebo veřejný pořádek (veřejná správa, energetika, telekomunikace, doprava). Určuje je nařízení vlády."],
+    ["Jaké povinnosti mají poskytovatelé strategicky významných služeb?", "Zajištění dostupnosti služby z území ČR (i při krizích) a bezpečnost dodavatelského řetězce (evidovat významné dodavatele, hlásit je NÚKIBu do 10 dnů)."],
+    ["Co je NÚKIB a kde sídlí?", "Národní úřad pro kybernetickou a informační bezpečnost – ústřední správní úřad pro KB (sídlo Brno), v čele ředitel odpovědný vládě. Registruje a dohlíží na regulované služby, vydává opatření, řeší incidenty, kontroluje, sankcionuje."],
+    ["Co je Národní CERT podle nZKB?", "Tým zajišťující sdílení informací a řešení incidentů hlavně pro subjekty v nižším režimu. Provozuje ho vybraná právnická osoba na základě smlouvy s Úřadem."],
+    ["Kdo kontroluje činnost NÚKIB?", "Poslanecká sněmovna prostřednictvím zvláštního orgánu (min. 7 poslanců), který může požadovat informace a upozorňovat na porušení zákona."],
+    ["Co je triáda CIA?", "Tři cíle bezpečnosti informací: důvěrnost (Confidentiality – jen pro oprávněné), integrita (Integrity – data nezměněna), dostupnost (Availability – data k dispozici, když jsou potřeba)."],
+    ["Co je portál NÚKIB (§ 45)?", "Digitální platforma pro komunikaci a úkony s Úřadem – většina úkonů probíhá povinně elektronicky."],
+    ["Jaké evidence vede NÚKIB (§ 46)?", "Evidence regulovaných služeb, registrace domén, incidentů, hrozeb a zranitelností, dodavatelů, penetračních testů a kontrol. Údaje sdílí jen omezeně."],
+    ["Proč se některé informace o KB neposkytují podle zákona o svobodném přístupu k informacím?", "Protože jejich zpřístupnění by mohlo ohrozit zajišťování kybernetické bezpečnosti, nebo jsou vedené v evidencích NÚKIB podle § 46."],
+    ["Jak souvisí bezpečnost dodavatelského řetězce s KB?", "Poskytovatel musí identifikovat a evidovat bezpečnostně významné dodavatele a hlásit je NÚKIBu. NÚKIB může využití konkrétního dodavatele omezit nebo zakázat (§ 29)."],
+  ]},
+  { t: "2. Pracovní právo", cards: [
+    ["Co upravuje pracovní právo a jaký je hlavní předpis?", "Vztahy mezi zaměstnavateli a zaměstnanci při výkonu závislé práce. Hlavní předpis je zákoník práce (262/2006 Sb.)."],
+    ["Jaké jsou znaky závislé práce?", "Vztah nadřízenosti zaměstnavatele a podřízenosti zaměstnance, práce jménem zaměstnavatele a podle jeho pokynů, osobně zaměstnancem, za mzdu/plat, na náklady a odpovědnost zaměstnavatele."],
+    ["Jak vzniká pracovní poměr?", "Pracovní smlouvou (písemně) nebo jmenováním (u vedoucích míst ve veřejné správě)."],
+    ["Jaké jsou podstatné náležitosti pracovní smlouvy?", "Druh práce, místo výkonu práce a den nástupu do práce. Smlouva musí být písemná."],
+    ["Jak dlouhá může být zkušební doba?", "Maximálně 3 měsíce (u vedoucích 6 měsíců). Musí být sjednána písemně nejpozději v den nástupu."],
+    ["Na jak dlouho lze sjednat pracovní poměr na dobu určitou?", "Nejvýše na dobu 2 let ode dne vzniku pracovního poměru (lze opakovat dle zákonných pravidel)."],
+    ["Jaké jsou způsoby skončení pracovního poměru?", "Dohoda, výpověď, okamžité zrušení, zrušení ve zkušební době a uplynutí doby (u doby určité)."],
+    ["Jak funguje skončení dohodou?", "Oboustranná shoda zaměstnavatele a zaměstnance, pracovní poměr končí sjednaným dnem. Musí být písemná."],
+    ["Co platí pro výpověď?", "Jednostranné ukončení, písemně. Zaměstnavatel může dát výpověď jen ze zákonných důvodů (§ 52). Výpovědní doba je min. 2 měsíce."],
+    ["Jak dlouhá je výpovědní doba a kdy začíná běžet?", "Minimálně 2 měsíce, je stejná pro obě strany a začíná běžet prvním dnem měsíce následujícího po doručení výpovědi."],
+    ["Kdy lze pracovní poměr okamžitě zrušit?", "Výjimečně – např. byl-li zaměstnanec odsouzen za úmyslný trestný čin, nebo porušil-li povinnosti zvlášť hrubým způsobem."],
+    ["Jaký je rozdíl mezi DPP a DPČ?", "DPP (dohoda o provedení práce): max. 300 hodin/rok u jednoho zaměstnavatele. DPČ (dohoda o pracovní činnosti): v průměru max. polovina stanovené týdenní doby."],
+    ["Kolik činí stanovená týdenní pracovní doba?", "Zpravidla 40 hodin týdně."],
+    ["Jak často musí být přestávka na jídlo a oddech?", "Nejdéle po 6 hodinách nepřetržité práce, v délce minimálně 30 minut."],
+    ["Jak dlouhá je minimální dovolená?", "Nejméně 4 týdny za kalendářní rok."],
+    ["Co je mzda a co plat?", "Mzda = odměna v podnikatelské sféře (soukromý sektor). Plat = odměna ve veřejném sektoru (stát, obce, příspěvkové organizace)."],
+    ["Co je minimální mzda?", "Nejnižší přípustná odměna za práci stanovená státem; zaměstnavatel ji nesmí podkročit."],
+    ["Co je výběrové řízení v personalistice?", "Soubor činností vedoucích ke shromáždění informací o uchazeči, na jejichž základě se posoudí jeho vhodnost pro pozici. Zdroje uchazečů jsou interní nebo externí (např. úřad práce)."],
+    ["Jaké dokumenty se zkoumají při výběru pracovníka?", "Životopis, žádost o místo, osobní dotazník a posudek."],
+    ["Co je závislá práce vs. podnikání (švarcsystém)?", "Švarcsystém = nelegální výkon závislé práce formálně jako podnikání (OSVČ). Postihuje ho Státní úřad inspekce práce (SÚIP)."],
+    ["Kdo dohlíží na dodržování pracovněprávních předpisů?", "Státní úřad inspekce práce (SÚIP) – mj. odhaluje švarcsystém a může sankcionovat zaměstnavatele i osoby."],
+    ["Jaké druhy plánů se týkají počtu pracovníků?", "Personalistika zahrnuje plánování počtu pracovníků, jejich zajišťování (nábor, výběr), rozmisťování a péči o ně."],
+    ["Co musí obsahovat pracovní smlouva (shrnutí)?", "Druh práce, místo výkonu práce a den nástupu. Písemná forma, případně ujednání o zkušební době (max. 3 měsíce)."],
+    ["Co je personalistika?", "Proces související se zařazováním pracovníka do pracovního procesu; cílem je komplexní péče o pracovníky (plánování, nábor, výběr, rozvoj)."],
+    ["Jaký je rozdíl mezi pracovním poměrem a dohodami mimo pracovní poměr?", "Pracovní poměr je hlavní forma zaměstnání (smlouva/jmenování). DPP a DPČ jsou pružnější dohody s omezeným rozsahem hodin a odlišným režimem odvodů."],
+  ]},
+  { t: "3. Podnikání", cards: [
+    ["Co je podnikání?", "Soustavná činnost prováděná samostatně podnikatelem vlastním jménem a na vlastní odpovědnost za účelem dosažení zisku."],
+    ["Které předpisy upravují podnikání?", "Občanský zákoník (89/2012 Sb.), zákon o obchodních korporacích (90/2012 Sb.) a živnostenský zákon (455/1991 Sb.)."],
+    ["Jak ručí OSVČ?", "Fyzická osoba (OSVČ) ručí celým svým majetkem – neomezené ručení."],
+    ["Jaké jsou všeobecné podmínky pro získání živnosti?", "Plná svéprávnost a bezúhonnost. U řemeslných, vázaných a koncesovaných i odborná způsobilost nebo zvláštní podmínky."],
+    ["Jak se dělí živnosti?", "Ohlašovací (volná, řemeslná, vázaná) a koncesované (vyžadují koncesi – povolení státu)."],
+    ["Co je volná živnost?", "Ohlašovací živnost bez prokazování odbornosti (např. velkoobchod, IT poradenství)."],
+    ["Co je řemeslná živnost?", "Ohlašovací živnost vyžadující vyučení nebo praxi v oboru (např. zedník, kuchař)."],
+    ["Co je vázaná živnost?", "Ohlašovací živnost vyžadující splnění zákonné kvalifikace (např. účetnictví, masér)."],
+    ["Co je koncesovaná živnost?", "Živnost vyžadující koncesi (státní povolení), např. taxislužba, obchod se zbraněmi."],
+    ["Jaký je rozdíl v ručení u s.r.o. a v.o.s.?", "s.r.o.: společníci ručí jen do výše nesplaceného vkladu. v.o.s.: společníci ručí celým majetkem, společně a nerozdílně."],
+    ["Jaký základní kapitál má s.r.o.?", "Minimálně 1 Kč. Společníci ručí do výše nesplaceného vkladu."],
+    ["Jaký základní kapitál má a.s.?", "Minimálně 2 000 000 Kč. Akcionáři neručí za dluhy společnosti."],
+    ["Jak ručí komanditní společnost (k.s.)?", "Komplementář ručí neomezeně celým majetkem, komanditista jen do výše svého vkladu."],
+    ["Co je družstvo?", "Společenství neuzavřeného počtu osob, min. základní kapitál 50 000 Kč; členové neručí za dluhy družstva."],
+    ["Co je SWOT analýza?", "Strengths (silné stránky), Weaknesses (slabé stránky), Opportunities (příležitosti), Threats (hrozby). Silné/slabé = vnitřní, příležitosti/hrozby = vnější faktory."],
+    ["Co obsahuje podnikatelský plán?", "Shrnutí, popis produktu/služby, analýzu trhu a konkurence, marketingovou a finanční strategii a analýzu rizik."],
+    ["Co je obchodní rejstřík?", "Veřejný seznam, do kterého se zapisují obchodní korporace a další podnikatelé; obsahuje základní údaje o firmě."],
+    ["Co je živnostenský rejstřík?", "Evidence živnostenských oprávnění vedená živnostenskými úřady."],
+    ["Kdo vydává živnostenské oprávnění?", "Živnostenský úřad – rozhoduje o vzniku, změnách, přerušení a zániku oprávnění na základě ohlášení nebo žádosti."],
+    ["Jaký je rozdíl mezi fyzickou a právnickou osobou v podnikání?", "FO podniká sama na živnostenské oprávnění a ručí celým majetkem. PO (obchodní korporace) je samostatný subjekt s vlastním majetkem a odlišným ručením."],
+    ["Co je zisk?", "Kladný rozdíl mezi výnosy (příjmy) a náklady (výdaji). Hlavní cíl podnikání."],
+    ["Jaké jsou výhody podnikání jako OSVČ?", "Jednoduché založení, nižší administrativa, přímá kontrola. Nevýhoda: ručení celým majetkem."],
+    ["Jaké jsou výhody s.r.o.?", "Omezené ručení společníků, oddělení osobního a firemního majetku, vyšší důvěryhodnost. Nevýhoda: vyšší administrativa."],
+    ["Co je obchodní firma?", "Název, pod kterým je podnikatel zapsán v obchodním rejstříku a pod nímž jedná."],
+    ["Co je koncese a kdo ji uděluje?", "Státní povolení k provozování koncesované živnosti; uděluje ji živnostenský úřad po splnění zvláštních podmínek."],
+  ]},
+  { t: "4. Občanské právo", cards: [
+    ["Co je občanské (soukromé) právo?", "Souhrn norem řešících majetkové a osobní vztahy mezi fyzickými a právnickými osobami, které jsou si rovny. Hlavní pramen: občanský zákoník."],
+    ["Které oblasti patří do občanského práva?", "Rodinné právo, věcné právo, dědické právo, závazkové právo a duševní vlastnictví."],
+    ["Jaké jsou prameny občanského práva?", "Občanský zákoník (hlavní), Listina základních práv a svobod, judikatura (Nejvyšší a Ústavní soud), mezinárodní smlouvy, autorský zákon."],
+    ["Co je právní osobnost?", "Schopnost mít práva a povinnosti. Vzniká narozením, zaniká úmrtím/prohlášením za mrtvého. Nelze ji odebrat."],
+    ["Má nenarozené dítě právní ochranu?", "Ano – nasciturus má právní ochranu, pokud se narodí živé (např. může dědit po otci zemřelém před porodem)."],
+    ["Co je svéprávnost?", "Schopnost vlastním jednáním nabývat práv a povinností (např. uzavírat smlouvy). Plná svéprávnost od 18 let."],
+    ["Jak lze získat svéprávnost před 18. rokem?", "Sňatkem před 18 (se souhlasem soudu) nebo emancipací (soud uzná, že se osoba umí sama živit), od 16 let."],
+    ["Lze svéprávnost omezit?", "Ano, soudem, obvykle na 3 roky (max. 5 let), pokud osoba není schopna jednat sama."],
+    ["Co chrání ochrana osobnosti?", "Tělesnou i duševní nedotknutelnost, soukromí, čest, důstojnost, jméno a podobu. Nelze nikoho fotit/zveřejňovat/sledovat bez souhlasu (výjimky jen zákonem). Platí i po smrti."],
+    ["Co je právnická osoba?", "Organizovaný útvar, kterému zákon přiznává právní osobnost. Slouží soukromým nebo veřejným zájmům."],
+    ["Co jsou korporace (typ PO)?", "PO založené na sdružení osob (členů) se společným cílem, rozhodují hlasováním. Patří sem spolky, obchodní korporace, družstva."],
+    ["Co je spolek?", "Korporace min. 3 členů pro společný zájem (ne podnikání). Členové neručí za dluhy, nevyžaduje kapitál, název obsahuje „spolek“ nebo „z. s.“."],
+    ["Co jsou fundace?", "PO založené majetkem (ne lidmi), spravují majetek pro veřejně prospěšný účel. Patří sem nadace a nadační fond."],
+    ["Jaký je rozdíl mezi nadací a nadačním fondem?", "Nadace: min. vklad 500 000 Kč, dlouhodobá, vznik zápisem. Nadační fond: bez povinného vkladu, krátkodobý charakter, majetek tvoří dary."],
+    ["Co je ústav (typ PO)?", "PO poskytující veřejně prospěšné služby (vzdělání, zdravotnictví, kultura). Nemá členy, ale zaměstnance. Název obsahuje „zapsaný ústav“ nebo „z. ú.“."],
+    ["Co je věc v právním smyslu?", "Vše, co je rozdílné od osoby a slouží potřebě lidí. Věcí NENÍ lidské tělo, osobnostní práva ani zvíře."],
+    ["Jak se člení věci?", "Hmotné × nehmotné, movité × nemovité, zastupitelné × nezastupitelné, spotřebitelné × nespotřebitelné, dělitelné × nedělitelné, hlavní věc × příslušenství."],
+    ["Co jsou absolutní práva?", "Práva působící vůči všem (každý je povinen nezasahovat). Patří sem věcná práva (držba, vlastnictví) a dědická práva."],
+    ["Co je držba a vydržení?", "Držba = stav, kdy osoba vykonává právo pro sebe, jako by jí náleželo (poctivá/nepoctivá). Vydržení: u nemovitostí 3 roky, u movitých věcí 10 let poctivé držby."],
+    ["Jaká 4 oprávnění má vlastník?", "Právo věc držet, užívat, disponovat s ní a brát z ní plody a užitky."],
+    ["Co je společné jmění manželů (SJM)?", "Vzniká sňatkem. Nepatří do něj majetek z doby před manželstvím, dědictví, dary, věci osobní potřeby a věci k výkonu povolání. Lze upravit předmanželskou smlouvou."],
+    ["Co jsou věcná práva k cizí věci?", "Omezení vlastnictví právem jiné osoby: právo stavby (stavba na cizím pozemku) a věcné břemeno (vlastník musí něco trpět/konat/dávat)."],
+    ["Co je závazek (relativní právo)?", "Právní vztah mezi věřitelem (má pohledávku) a dlužníkem (má dluh). Věřitel má právo požadovat plnění, dlužník povinnost plnit. Působí jen mezi konkrétními osobami."],
+    ["Jaké jsou 4 typy povinností v závazku?", "Něco dát, něco konat, něco strpět a něco nekonat."],
+    ["Jak vznikají závazky a jak se zajišťují?", "Vznikají ze smlouvy, z protiprávního činu (deliktu) nebo z jiných skutečností (např. bezdůvodné obohacení). Zajištění např. ručením – ručitel písemně slíbí splnění dluhu místo dlužníka."],
+  ]},
+  { t: "5. Trestní právo", cards: [
+    ["Co je trestní právo?", "Odvětví veřejného práva, které vymezuje, které jednání je trestným činem, kdo za něj nese odpovědnost a jaké tresty/ochranná opatření lze uložit. Chrání nejdůležitější společenské hodnoty."],
+    ["Jak se trestní právo dělí?", "Na hmotné (vymezuje trestné činy a sankce – trestní zákoník 40/2009 Sb.) a procesní (upravuje postup v trestním řízení – trestní řád)."],
+    ["Co je trestný čin?", "Protiprávní čin, který trestní zákon označuje za trestný a který vykazuje znaky uvedené v zákoně."],
+    ["Jak se dělí trestné činy?", "Na přečiny (méně závažné – nedbalostní a úmyslné do 5 let), zločiny (nejsou přečiny) a zvlášť závažné zločiny (úmyslné s minimální sazbou 10 let)."],
+    ["Kdo je pachatel a kdo účastník?", "Pachatel = osoba, která TČ spáchala. Při podílu více osob jde o spolupachatele nebo účastníky (organizátor, návodce, pomocník)."],
+    ["Jaké jsou podmínky trestní odpovědnosti?", "Dosažení věku 15 let, příčetnost (rozpoznat protiprávnost a ovládat jednání) a zavinění (úmysl nebo nedbalost)."],
+    ["Jaký je rozdíl mezi vědomou a nevědomou nedbalostí?", "Vědomá: pachatel věděl, že může zákon porušit, ale bez důvodu spoléhal, že ne. Nevědomá: nevěděl, ale vzhledem k okolnostem a poměrům vědět měl a mohl."],
+    ["Jaký je rozdíl mezi přímým a nepřímým úmyslem?", "Přímý úmysl: pachatel chtěl zákon porušit. Nepřímý úmysl: věděl, že může porušit, a pro ten případ byl s tím srozuměn."],
+    ["Co je skutková podstata trestného činu?", "Souhrn znaků vymezujících, jakého trestného činu se osoba dopustila: objekt, objektivní stránka, subjekt, subjektivní stránka."],
+    ["Co jsou okolnosti vylučující protiprávnost?", "Okolnosti, které zbavují čin protiprávnosti: krajní nouze, nutná obrana, svolení poškozeného, přípustné riziko, oprávněné použití zbraně."],
+    ["Co je krajní nouze a nutná obrana?", "Krajní nouze = odvrácení nebezpečí (např. poškození cizího majetku pro záchranu života). Nutná obrana = sebeobrana, musí být přiměřená útoku."],
+    ["Jaká je maximální výměra trestu odnětí svobody?", "Nejvýše 20 let, za zvlášť závažný zločin nejvýše 30 let, nebo doživotí."],
+    ["Jmenuj druhy trestů.", "Odnětí svobody, peněžitý trest, obecně prospěšné práce, zákaz činnosti, domácí vězení, propadnutí majetku/věci, zákaz pobytu/vstupu, vyhoštění (jen cizinci)."],
+    ["Kolik hodin je trest obecně prospěšných prací?", "Od 50 do 300 hodin, ukládá se za přečin zdravotně způsobilému pachateli."],
+    ["Co jsou ochranná opatření?", "Slouží k ochraně společnosti, ne k potrestání: ochranné léčení, zabezpečovací detence, ochranná výchova, zabrání věci."],
+    ["Komu se ukládá ochranné léčení?", "Pachateli, který není pro nepříčetnost trestně odpovědný a jehož pobyt na svobodě je nebezpečný."],
+    ["Které trestné činy patří do kyberprostoru?", "Neoprávněný přístup k počítačovému systému, poškození nebo zneužití dat, internetové podvody, nenávistné činy na internetu."],
+    ["Mohou být trestně odpovědné právnické osoby?", "Ano. Tresty: peněžitý trest, zrušení PO, zákaz plnění veřejných zakázek nebo účasti ve veřejné soutěži."],
+    ["Kdo jsou orgány činné v trestním řízení?", "Policie (chrání bezpečnost a pořádek), státní zástupce (podává obžalobu jménem státu) a soudy (rozhodují o vině a trestu)."],
+    ["Jaká je hierarchie soudů?", "Okresní → krajské → vrchní → Nejvyšší soud / Nejvyšší správní soud. Okresní = soud prvního stupně pro většinu věcí."],
+    ["Co řeší Nejvyšší správní soud?", "Mimořádné opravné prostředky proti rozhodnutím krajských soudů jako správních, kompetenční žaloby a rozpuštění/pozastavení politické strany."],
+    ["Jaká jsou stádia trestního řízení?", "Přípravné řízení, předběžné projednání obžaloby, hlavní líčení, odvolací řízení a vykonávání trestu."],
+    ["Jak se mění označení osoby v průběhu řízení?", "Podezřelý → (po obvinění) obviněný → (po podání obžaloby a v hlavním líčení) obžalovaný."],
+    ["Od kolika let vzniká trestní odpovědnost a co platí pro mladší?", "Od 15 let. Osoby mladší 15 let nejsou trestně odpovědné, lze jim uložit ochranná opatření (ochranná výchova). Mladiství (15–18) mají zvláštní režim."],
+    ["Které paragrafy TZ se týkají kyberkriminality?", "§ 230 neoprávněný přístup k počítačovému systému, § 231 opatření přístupového zařízení/hesla, § 232 poškození záznamu z nedbalosti."],
+  ]},
+{ t: "6. Správní právo", cards: [
+    ["Co je správní právo?", "Souhrn norem upravujících výkonnou státní moc, veřejnou správu a územní samosprávu. Patří do veřejného práva (vztah mezi veřejnou mocí a podřízenými osobami)."],
+    ["Jaké jsou prameny správního práva?", "Zákon o obcích, zákon o krajích, zákon o policii ČR, stavební zákon, správní řád (500/2004 Sb.), daňový řád."],
+    ["Jak se vnitřně člení správní právo?", "Hmotné (práva a povinnosti), procesní (postupy a řízení), organizační (struktura veřejné správy) a trestní (přestupky a správní tresty)."],
+    ["Z čeho se skládá veřejná správa?", "Ze státní správy (vykonává stát – ministerstva, vláda, ústřední úřady jako NÚKIB, ČSSZ) a samosprávy (kraje a obce spravující si místní záležitosti)."],
+    ["Kdo vykonává státní správu?", "Vláda, ministerstva (MŠMT, MZ, MV…), ústřední správní úřady (NÚKIB, ČSSZ, ČTÚ, ÚOHS), krajské úřady a obce v přenesené působnosti."],
+    ["Co je samospráva a kdo ji vykonává?", "Územní autonomie – obce a kraje rozhodují samy o místních záležitostech. Vykonávají ji zastupitelstvo, rada, starosta/primátor, hejtman a úřady."],
+    ["Co je obec?", "Základní územní samosprávný celek s právní subjektivitou (má majetek, uzavírá smlouvy). V ČR je přibližně 6300 obcí."],
+    ["Jak se dělí obce podle výkonu státní správy?", "Obec I. stupně (základní agenda), obec II. stupně (pověřený obecní úřad, má matriku), obec III. stupně (ORP – obec s rozšířenou působností, největší pravomoci)."],
+    ["Co řeší obec s rozšířenou působností (ORP)?", "Řidičské a technické průkazy, stavební řízení, živnosti, přestupky – má největší rozsah pravomocí, často magistrát."],
+    ["Co je zastupitelstvo obce?", "Nejvyšší orgán obce volený občany (5–55 členů). Rozhoduje o rozpočtu, vyhláškách, hospodaření s majetkem, volí a odvolává starostu."],
+    ["Co je rada obce?", "Výkonný orgán obce v samostatné působnosti (starosta + místostarosta + členové). V malých obcích nemusí být – pak její pravomoci přebírá starosta a zastupitelstvo."],
+    ["Jaké je postavení starosty?", "Statutární orgán obce volený zastupitelstvem, zastupuje obec navenek, podepisuje smlouvy, svolává a řídí zasedání. Ve statutárních městech primátor."],
+    ["Kdo je tajemník obecního úřadu?", "Zaměstnanec obce (není volen), který řídí chod úřadu. Povinný u obcí s min. 15 členy zastupitelstva a u ORP."],
+    ["Kolik je v ČR krajů a jaké má kraj orgány?", "14 krajů. Orgány: zastupitelstvo kraje (45–65 členů), rada kraje, hejtman (statutární orgán) a krajský úřad (v čele ředitel)."],
+    ["Co je samostatná působnost?", "Obec/kraj rozhoduje sama o místních věcech, stát kontroluje jen zákonnost. Např. místní poplatky, správa majetku, chodníky, osvětlení, kulturní akce."],
+    ["Co je přenesená působnost?", "Stát svěřuje obci/kraji výkon státní správy a ta rozhoduje jménem státu. Např. matrika, stavební úřad, živnostenský úřad, přestupky."],
+    ["Co je správní řízení?", "Postup správního orgánu, kterým rozhoduje o právech a povinnostech osob ve veřejné správě (stavební povolení, živnost, pokuta, dávky). Upraveno správním řádem."],
+    ["Kdo vystupuje ve správním řízení?", "Správní úřad (vede řízení a rozhoduje) a účastník řízení (osoba, o jejíchž právech/povinnostech se rozhoduje – občan, podnikatel, PO)."],
+    ["Jak se zahajuje správní řízení?", "Na žádost (zahajuje účastník – žádost o živnost, stavební povolení, dávku) nebo z moci úřední (zahajuje úřad sám – přestupkové, kontrolní řízení, pokuty)."],
+    ["Co musí obsahovat správní rozhodnutí?", "Výrok (samotné rozhodnutí – povoluje/zakazuje/ukládá), odůvodnění (proč úřad rozhodl takto) a poučení o odvolání (zda, kam a dokdy se lze odvolat)."],
+    ["Jak funguje odvolání ve správním řízení?", "Podává se k nadřízenému správnímu orgánu, ale prostřednictvím orgánu, který rozhodl v 1. stupni. Zpravidla ve lhůtě 15 dnů."],
+    ["Jaké jsou zásady správního řízení?", "Zákonnost, materiální pravda (zjistit skutečný stav), rovnost účastníků, hospodárnost a rychlost."],
+    ["Co je přestupek?", "Společensky škodlivý protiprávní čin, méně závažný než trestný čin. Řeší úřad podle zákona o odpovědnosti za přestupky (250/2016 Sb.)."],
+    ["Jaké jsou sankce za přestupek?", "Napomenutí, pokuta, zákaz činnosti, propadnutí věci."],
+    ["Jaký je rozdíl mezi přestupkem a trestným činem?", "Přestupek je méně závažný a řeší ho úřad (správní právo). Trestný čin je závažnější a řeší ho soud (trestní právo)."],
+  ]},
+  { t: "7. Ústavní právo", cards: [
+    ["Co je ústavní právo a jaké jsou jeho prameny?", "Základ právního řádu – upravuje uspořádání státu, dělbu moci a základní práva. Prameny: Ústava ČR (1/1993 Sb.) a Listina základních práv a svobod."],
+    ["Jak charakterizujeme ČR jako stát?", "Svrchovaný, jednotný a demokratický právní stát. Lid je zdrojem veškeré státní moci."],
+    ["Jak je uplatněna dělba moci?", "Zákonodárná (Parlament – přijímá zákony), výkonná (prezident + vláda – provádí zákony), soudní (soudy a Ústavní soud – rozhodují spory)."],
+    ["Z čeho se skládá Parlament ČR?", "Ze dvou komor: Poslanecká sněmovna (200 poslanců) a Senát (81 senátorů)."],
+    ["Popiš Poslaneckou sněmovnu.", "200 poslanců volených na 4 roky poměrným volebním systémem. Hlavní zákonodárná komora, vyslovuje důvěru vládě."],
+    ["Popiš Senát.", "81 senátorů volených na 6 let většinovým systémem, každé 2 roky se obměňuje třetina. Senát nelze rozpustit."],
+    ["Jak se volí a jaké postavení má prezident?", "Hlava státu, volen přímo na 5 let (max. 2 období po sobě). Reprezentuje stát navenek, jmenuje vládu, soudce, má právo veta."],
+    ["Jaké je postavení vlády?", "Vrcholný orgán výkonné moci (premiér + ministři). Je odpovědná Poslanecké sněmovně, která jí vyslovuje důvěru/nedůvěru."],
+    ["Jaká je soustava soudů?", "Okresní → krajské → vrchní → Nejvyšší soud a Nejvyšší správní soud. Samostatně stojí Ústavní soud."],
+    ["Jakou funkci plní Ústavní soud?", "Chrání ústavnost, rozhoduje o ústavních stížnostech, může zrušit zákon v rozporu s ústavou. Má 15 soudců jmenovaných na 10 let."],
+    ["Které kategorie práv obsahuje Listina?", "Základní lidská práva, politická práva, hospodářská/sociální/kulturní práva, práva národnostních menšin a právo na ochranu soukromí (čl. 10)."],
+    ["Co jsou základní lidská práva?", "Právo na život, lidskou důstojnost, osobní svobodu, nedotknutelnost osoby, vlastnictví. Patří všem bez rozdílu."],
+    ["Co jsou politická práva?", "Svoboda projevu, právo na informace, shromažďovací a sdružovací právo, petiční právo, volební právo."],
+    ["Jakou právní sílu mají ústavní zákony a Listina?", "Nejvyšší. Zákon, který je s nimi v rozporu, může Ústavní soud zrušit."],
+    ["Co je primární a sekundární prameny ústavního práva?", "Ústava a ústavní zákony tvoří ústavní pořádek (nejvyšší síla). Běžné zákony musí být s ním v souladu."],
+    ["Co znamená, že ČR je právní stát?", "Stát vázaný právem – veřejná moc smí jednat jen na základě zákona a v jeho mezích, práva občanů jsou chráněna."],
+    ["Co je dělba moci a proč existuje?", "Rozdělení státní moci na tři nezávislé složky (zákonodárná, výkonná, soudní), aby se vzájemně kontrolovaly a nedošlo ke zneužití moci."],
+    ["Jak vzniká zákon (legislativní proces v ČR)?", "Návrh → projednání v Poslanecké sněmovně → Senát → podpis prezidenta → vyhlášení ve Sbírce zákonů."],
+    ["Co je Ústavní pořádek ČR?", "Ústava, Listina základních práv a svobod a další ústavní zákony – mají nejvyšší právní sílu."],
+    ["Kdo může podat ústavní stížnost?", "Fyzická nebo právnická osoba, jejíž ústavně zaručená práva byla porušena pravomocným rozhodnutím orgánu veřejné moci (po vyčerpání opravných prostředků)."],
+    ["Jak souvisí ústavní právo s ochranou osobních údajů?", "Listina v čl. 10 zaručuje právo na ochranu před neoprávněným shromažďováním a zveřejňováním osobních údajů – ústavní základ pro GDPR."],
+    ["Co je svrchovanost (suverenita) státu?", "Nezávislost státní moci navenek (vůči jiným státům) a její výlučnost uvnitř (na svém území)."],
+    ["Jaké jsou formy přímé demokracie v ČR?", "Referendum (např. o vstupu do EU) a volby. Většina rozhodování probíhá zastupitelskou demokracií (volení zástupci)."],
+    ["Co je imunita poslanců a senátorů?", "Ochrana před trestním stíháním za výkon mandátu (projevy, hlasování), aby mohli svobodně vykonávat funkci."],
+    ["Jaký je vztah práva EU a ústavního práva ČR?", "Právo EU má v případě rozporu přednost před vnitrostátním zákonem, ČR přenesla část pravomocí na EU na základě ústavního zmocnění."],
+  ]},
+  { t: "8. Ochrana osobnosti a soukromí", cards: [
+    ["Co chrání ochrana osobnosti?", "Nemajetkové hodnoty člověka: život, důstojnost, čest, soukromí, jméno, podobu a projevy osobní povahy. Základ: § 81 a násl. občanského zákoníku a Listina."],
+    ["Lze někoho fotit nebo sledovat bez souhlasu?", "Ne – podobu, písemnosti osobní povahy a soukromí lze zachytit/zveřejnit zpravidla jen se souhlasem. Výjimky stanoví zákon (policie, zpravodajství, vědecké účely)."],
+    ["Jaké nároky má člověk při zásahu do osobnosti?", "Aby se rušitel zdržel zásahu, odstranil následky a nahradil majetkovou i nemajetkovou újmu."],
+    ["Platí ochrana osobnosti i po smrti?", "Ano – po smrti se jí může domáhat rodina (osoby blízké)."],
+    ["Co je GDPR?", "Obecné nařízení EU o ochraně osobních údajů (2016/679). Přímo použitelné ve všech státech EU. V ČR doplněno zákonem 110/2019 Sb."],
+    ["Co je osobní údaj?", "Jakákoli informace o identifikované nebo identifikovatelné fyzické osobě (jméno, adresa, IP, rodné číslo, fotografie)."],
+    ["Co jsou zvláštní kategorie osobních údajů?", "Citlivé údaje – o zdraví, biometrii, genetice, rase, náboženství, politických názorech, sexuální orientaci. Mají přísnější režim zpracování."],
+    ["Kdo je správce osobních údajů?", "Subjekt, který určuje účel a prostředky zpracování osobních údajů."],
+    ["Kdo je zpracovatel?", "Subjekt, který zpracovává osobní údaje pro správce na základě jeho pokynů."],
+    ["Kdo je subjekt údajů?", "Fyzická osoba, jejíž osobní údaje se zpracovávají."],
+    ["Jaké jsou zásady zpracování osobních údajů?", "Zákonnost, korektnost, transparentnost, účelové omezení, minimalizace údajů, přesnost, omezení uložení, integrita a důvěrnost."],
+    ["Jaké jsou právní tituly zpracování?", "Souhlas, plnění smlouvy, právní povinnost, ochrana životně důležitých zájmů, veřejný zájem a oprávněný zájem správce."],
+    ["Jaké vlastnosti musí mít platný souhlas?", "Svobodný, konkrétní, informovaný a jednoznačný. Předem zaškrtnuté políčko neplatí. Souhlas lze kdykoli odvolat."],
+    ["Jaká práva má subjekt údajů?", "Právo na přístup, opravu, výmaz (právo být zapomenut), omezení zpracování, přenositelnost, vznesení námitky a nebýt předmětem automatizovaného rozhodování."],
+    ["Co je právo být zapomenut?", "Právo subjektu na výmaz osobních údajů, pokud již nejsou potřebné, byl odvolán souhlas nebo byly zpracovány protiprávně."],
+    ["Kdo dohlíží na GDPR v ČR?", "Úřad pro ochranu osobních údajů (ÚOOÚ) – nezávislý dozorový orgán."],
+    ["Jaké pokuty hrozí podle GDPR?", "Až 20 milionů EUR nebo 4 % celosvětového ročního obratu (podle toho, co je vyšší)."],
+    ["Co je DPO (pověřenec pro ochranu osobních údajů)?", "Osoba dohlížející uvnitř organizace na soulad s GDPR. Povinný např. u orgánů veřejné moci a při rozsáhlém zpracování."],
+    ["Co je pseudonymizace a anonymizace?", "Pseudonymizace = nahrazení identifikátorů tak, že údaje nelze přiřadit bez dodatečné informace. Anonymizace = trvalé odstranění možnosti identifikace (na anonymní data se GDPR nevztahuje)."],
+    ["Co je porušení zabezpečení osobních údajů a jak se hlásí?", "Únik, zničení, ztráta nebo neoprávněný přístup k osobním údajům. Hlásí se ÚOOÚ zpravidla do 72 hodin; při vysokém riziku i subjektům údajů."],
+    ["Jak souvisí ochrana osobnosti s ochranou osobních údajů?", "Ochrana osobnosti (občanský zákoník) chrání soukromí a integritu obecně; GDPR konkrétně reguluje zpracování osobních údajů. Doplňují se."],
+    ["Co je profilování?", "Automatizované zpracování osobních údajů k hodnocení osobních aspektů (chování, preference). Podléhá zvláštní ochraně podle GDPR."],
+    ["Jaký je rozdíl mezi soukromím a osobním údajem?", "Soukromí je širší hodnota (osobní život, vztahy). Osobní údaj je konkrétní informace identifikující osobu. Oba jsou chráněny, ale jinými předpisy."],
+    ["Jaké jsou výjimky ze souhlasu při zveřejnění podoby?", "Tzv. zákonné licence – zpravodajská, vědecká a umělecká licence, úřední účely (např. policie)."],
+    ["Proč je ochrana soukromí důležitá v kyberbezpečnosti?", "Úniky osobních údajů jsou častým cílem útoků; ochrana soukromí (důvěrnost dat) je součástí triády CIA a zákonných povinností organizací."],
+  ]},
+  { t: "9. Aplikace KB", cards: [
+    ["Co znamená aplikace kybernetické bezpečnosti?", "Praktické uplatnění bezpečnostních principů v organizaci – od politik a procesů po každodenní chování uživatelů."],
+    ["Kdo je manažer KB (CISO)?", "Osoba řídící celý systém bezpečnosti informací v organizaci, odpovědná vedení. Koordinuje opatření a řízení rizik."],
+    ["Kdo je architekt KB?", "Osoba navrhující bezpečnostní architekturu a konkrétní opatření v souladu s politikou organizace."],
+    ["Kdo je auditor KB?", "Osoba, která nezávisle ověřuje účinnost a soulad bezpečnostních opatření (audity)."],
+    ["Kdo je garant aktiva?", "Vlastník aktiva odpovědný za jeho ochranu, klasifikaci a přidělování přístupových oprávnění."],
+    ["Co je bezpečnostní politika?", "Nejvyšší bezpečnostní dokument organizace – stanovuje cíle a pravidla bezpečnosti. Z ní vychází směrnice, postupy a plány."],
+    ["Jaká je hierarchie bezpečnostní dokumentace?", "Politika (nejvyšší) → směrnice a postupy (konkrétní pravidla – hesla, zálohy, přístupy) → záznamy a plány (incidentů, obnovy, kontinuity)."],
+    ["Co je princip nejmenších oprávnění (least privilege)?", "Uživatel/proces má jen ta oprávnění, která nezbytně potřebuje ke své práci. Omezuje dopad zneužití účtu."],
+    ["Co je řízení přístupu (RBAC)?", "Role-Based Access Control – přidělování oprávnění podle rolí, ne jednotlivcům. Usnadňuje správu a omezuje chyby."],
+    ["Vysvětli pravidlo zálohování 3-2-1.", "3 kopie dat, na 2 různých médiích, 1 kopie mimo lokalitu (off-site)."],
+    ["Co je MFA a jaké faktory používá?", "Vícefaktorové ověření. Faktory: něco vím (heslo), něco mám (token, telefon), něco jsem (biometrie)."],
+    ["Proč je lidský faktor klíčový v KB?", "Člověk je nejčastější příčinou incidentů. Sociální inženýrství (phishing) cílí na uživatele, ne na techniku. Proto je školení nejúčinnější opatření."],
+    ["Co je sociální inženýrství?", "Manipulace lidí, aby vyzradili informace nebo provedli akci (phishing, vishing, baiting). Obchází technická opatření přes lidskou důvěřivost."],
+    ["Co je cyklus PDCA?", "Plan–Do–Check–Act. Bezpečnost není jednorázový projekt, ale nepřetržitý proces neustálého zlepšování (využívá ho ISMS)."],
+    ["Co je bezpečnostní povědomí (security awareness)?", "Znalost a ostražitost uživatelů vůči hrozbám. Budované školeními, simulovaným phishingem a osvětou."],
+    ["Jaké jsou zásady silného hesla?", "Dostatečná délka, kombinace znaků, unikátnost pro každou službu, neopakování, ideálně správce hesel a MFA."],
+    ["Co je správce hesel (password manager)?", "Nástroj pro bezpečné ukládání a generování silných unikátních hesel. Snižuje riziko opakování slabých hesel."],
+    ["Co je šifrování dat v klidu a při přenosu?", "V klidu = ochrana uložených dat (šifrování disku). Při přenosu = ochrana dat po síti (TLS, VPN). Obojí zajišťuje důvěrnost."],
+    ["Co je incident a jak na něj uživatel reaguje?", "Narušení bezpečnosti (CIA). Uživatel ho má bez prodlení nahlásit odpovědné osobě/bezpečnostnímu týmu, nepokoušet se ho řešit sám."],
+    ["Co je politika čistého stolu a obrazovky?", "Pravidlo nenechávat citlivé dokumenty a odemčené obrazovky bez dozoru – ochrana před neoprávněným přístupem."],
+    ["Jak souvisí aplikace KB s normou ISO 27001?", "ISO 27001 definuje požadavky na ISMS; aplikace KB je jejich praktická realizace v rolích, politikách a opatřeních."],
+    ["Co je řízení identit a přístupů (IAM)?", "Identity and Access Management – správa identit uživatelů a jejich oprávnění (autentizace, autorizace, životní cyklus účtu)."],
+    ["Co je BYOD a jaká rizika přináší?", "Bring Your Own Device – používání soukromých zařízení k práci. Rizika: únik dat, malware, obtížná správa. Řeší se politikou a MDM."],
+    ["Co je patch management v praxi?", "Pravidelné nasazování aktualizací a záplat na systémy, aby se odstranily známé zranitelnosti dříve, než je útočník zneužije."],
+    ["Proč je důležité oddělení povinností (segregation of duties)?", "Rozdělení kritických úkonů mezi více osob brání tomu, aby jedna osoba mohla provést a zároveň skrýt zneužití. Klíčové proti vnitřním hrozbám."],
+  ]},
+{ t: "10. Legislativa IT", cards: [
+    ["Co zahrnuje legislativa IT?", "Právní předpisy regulující informační technologie, software, data a elektronické služby – autorské právo, ochranu dat, elektronické úkony."],
+    ["Jak je v ČR chráněn software?", "Autorským právem jako autorské dílo (literární dílo) podle autorského zákona (121/2000 Sb.). Chrání se zdrojový i strojový kód – ne patentem."],
+    ["Jaký je rozdíl mezi osobnostními a majetkovými autorskými právy?", "Osobnostní práva jsou nepřevoditelná (autorství díla). Majetková práva lze poskytnout licencí (právo dílo užít)."],
+    ["Co je softwarová licence?", "Oprávnění užít dílo (software) za stanovených podmínek. Definuje, co smí uživatel s programem dělat."],
+    ["Jaké jsou typy softwarových licencí?", "Proprietární (uzavřené), open-source (GPL, MIT, Apache), freeware (zdarma), shareware (zkušební verze)."],
+    ["Co je open-source software?", "Software s veřejně dostupným zdrojovým kódem, který lze studovat, upravovat a šířit podle podmínek licence (např. GPL, MIT)."],
+    ["Co je eIDAS?", "Nařízení EU (910/2014) o elektronické identifikaci a důvěryhodných službách – sjednocuje elektronické podpisy a pečeti v EU."],
+    ["Jaké jsou tři úrovně elektronického podpisu?", "Prostý (např. naskenovaný), zaručený (jednoznačně spojen s osobou), kvalifikovaný (na kvalifikovaném certifikátu, roven vlastnoručnímu podpisu)."],
+    ["Co je kvalifikovaný elektronický podpis?", "Nejvyšší úroveň podpisu založená na kvalifikovaném certifikátu od důvěryhodného poskytovatele. Je právně roven vlastnoručnímu podpisu."],
+    ["Co je datová schránka?", "Elektronické úložiště pro komunikaci s úřady (zákon 300/2008 Sb.). Doručení do datové schránky má účinky úředního doručení."],
+    ["Co je elektronická pečeť?", "Obdoba podpisu pro právnické osoby – potvrzuje původ a integritu dokumentu vydaného organizací."],
+    ["Co řeší autorský zákon kromě softwaru?", "Ochranu literárních, hudebních, výtvarných děl, databází, audiovizuálních děl – výsledků tvůrčí duševní činnosti."],
+    ["Co je databázové právo?", "Zvláštní ochrana databází (i bez tvůrčího prvku) proti neoprávněnému vytěžování jejich obsahu (zvláštní právo pořizovatele databáze)."],
+    ["Jaký je rozdíl mezi autorským právem a patentem?", "Autorské právo chrání konkrétní vyjádření díla (kód, text) automaticky vznikem. Patent chrání technický vynález a vyžaduje registraci. Software se v EU zpravidla nepatentuje."],
+    ["Co je doménové jméno a kdo spravuje .cz?", "Lidsky čitelná adresa webu. Domény .cz spravuje a registruje sdružení CZ.NIC."],
+    ["Co je odpovědnost poskytovatele za obsah (safe harbor)?", "Poskytovatel (hosting, platforma) neodpovídá za uložený obsah, dokud se o jeho protiprávnosti neví; po upozornění ho musí odstranit."],
+    ["Co je licenční smlouva?", "Smlouva, kterou autor (poskytovatel) opravňuje nabyvatele k užití díla za sjednaných podmínek (rozsah, čas, území, úplata)."],
+    ["Co je GNU GPL licence?", "Copyleftová open-source licence – odvozená díla musí být šířena pod stejnou licencí (zachování svobody softwaru)."],
+    ["Co je EULA?", "End User License Agreement – licenční ujednání mezi tvůrcem softwaru a koncovým uživatelem, které uživatel odsouhlasí při instalaci."],
+    ["Jak souvisí legislativa IT s GDPR a ZKB?", "Legislativa IT je zastřešující; GDPR řeší osobní údaje, ZKB/nZKB kyberbezpečnost systémů. Společně tvoří právní rámec pro práci s IT."],
+    ["Co je elektronický úkon vůči úřadu?", "Podání učiněné elektronicky (datovou schránkou, s el. podpisem). Má stejné právní účinky jako papírová forma."],
+    ["Co je kvalifikovaný certifikát?", "Elektronické osvědčení od kvalifikovaného poskytovatele, které spojuje data pro ověření podpisu s konkrétní osobou."],
+    ["Co je timestamp (časové razítko)?", "Důvěryhodný údaj o čase, kdy dokument existoval. Prokazuje, že data nebyla po daném okamžiku změněna."],
+    ["Co je softwarové pirátství?", "Neoprávněné užívání, kopírování nebo šíření softwaru v rozporu s licencí – porušení autorského práva."],
+    ["Co je svobodný přístup k informacím a kdo na něj dohlíží?", "Právo veřejnosti na informace od povinných subjektů (zákon 106/1999 Sb.). Dozor vykonává ÚOOÚ."],
+  ]},
+  { t: "11. Legislativa EU", cards: [
+    ["Co je Evropská unie?", "Politicko-ekonomické uskupení (sui generis) se znaky mezinárodní organizace i federace, založené na mezinárodních smlouvách. Současná podoba dle Lisabonské smlouvy (2009)."],
+    ["Jaké jsou čtyři základní svobody vnitřního trhu?", "Volný pohyb osob, zboží, služeb a kapitálu."],
+    ["Co je Evropská rada?", "Hlavy států/vlád + předseda ER + předsedkyně EK. Určuje politické směry a priority (strategický orgán). Nevykonává legislativní funkci. Sídlo Brusel."],
+    ["Co je Evropská komise?", "Kolegium komisařů (1 z každého státu), nezávislých na vládách. „Strážkyně smluv“, má výhradní právo navrhovat zákony (legislativní iniciativa), spravuje rozpočet."],
+    ["Co je Rada Evropské unie (REU)?", "Ministři vlád členských států podle resortů. Spolu s Evropským parlamentem přijímá zákony, schvaluje rozpočet, koordinuje politiky. Nezaměňovat s Evropskou radou."],
+    ["Co je Evropský parlament?", "720 poslanců (po volbách 2024) volených přímo občany na 5 let. Funkce: legislativní, rozpočtová a kontrolní (vyslovuje důvěru Komisi)."],
+    ["Co je Soudní dvůr EU (SDEU)?", "Soudní dvůr a Tribunál. Zajišťuje jednotný výklad práva EU, rozhoduje o žalobách proti státům či institucím za porušení práva EU."],
+    ["Jak funguje řádný legislativní proces EU?", "Komise předloží návrh → Evropský parlament a Rada EU jej projednávají → k přijetí je nutný souhlas obou (rovnocenné postavení) → publikace v Úředním věstníku."],
+    ["Co je primární a sekundární právo EU?", "Primární = zakládající smlouvy (jako „ústava“ EU). Sekundární = akty institucí (nařízení, směrnice, rozhodnutí, doporučení)."],
+    ["Co je zásada přednosti (primátu) práva EU?", "Právo EU má v případě rozporu přednost před vnitrostátním zákonem (včetně ČR)."],
+    ["Co je přímý účinek práva EU?", "Jednotlivec se může práva EU dovolávat přímo před národním soudem."],
+    ["Co je nařízení EU?", "Akt závazný v celém rozsahu a přímo použitelný ve všech státech bez transpozice. Příklad: GDPR."],
+    ["Co je směrnice EU?", "Akt závazný co do výsledku; vyžaduje transpozici (převzetí do národního zákona). Příklad: NIS2."],
+    ["Jaký je rozdíl mezi nařízením a směrnicí?", "Nařízení platí přímo (GDPR), směrnice se musí přenést do národního zákona (NIS2 → nZKB v ČR)."],
+    ["Co je rozhodnutí EU?", "Akt závazný pro konkrétní adresáty (státy nebo firmy), např. rozhodnutí o pokutě firmě."],
+    ["Co jsou doporučení a stanoviska EU?", "Právně nezávazné nástroje – politický nebo výkladový význam."],
+    ["Co je GDPR z hlediska práva EU?", "Nařízení (2016/679) o ochraně osobních údajů – přímo použitelné, není třeba český zákon."],
+    ["Co je NIS2 z hlediska práva EU?", "Směrnice o kyberbezpečnosti – vyžaduje transpozici; v ČR ji provádí nový zákon o KB (264/2025 Sb.)."],
+    ["Jaká práva má občan EU?", "Volný pohyb a pobyt (žít, pracovat, studovat v EU), volební právo do EP a komunálních voleb v místě bydliště, diplomatická ochrana, petiční právo."],
+    ["Nahrazuje občanství EU státní občanství?", "Ne – pouze ho doplňuje."],
+    ["Co je ENISA?", "Agentura EU pro kybernetickou bezpečnost – podporuje členské státy, certifikaci a spolupráci v oblasti KB."],
+    ["Jmenuj klíčové předpisy EU pro IT a KB.", "GDPR (osobní údaje), NIS2 (kyberbezpečnost), eIDAS (el. identifikace), DORA (odolnost financí), Cybersecurity Act, AI Act."],
+    ["Co je DORA?", "Nařízení o digitální provozní odolnosti finančního sektoru – požadavky na odolnost bank a finančních institucí vůči ICT rizikům."],
+    ["Co je AI Act?", "Nařízení EU regulující umělou inteligenci podle míry rizika (od minimálního po nepřijatelné)."],
+    ["Kde se publikují přijaté akty EU?", "V Úředním věstníku EU ve všech 24 úředních jazycích."],
+  ]},
+  { t: "12. Dozorové orgány", cards: [
+    ["Co jsou dozorové (dohledové) orgány?", "Orgány veřejné správy kontrolující dodržování předpisů, vydávající metodiky, řešící incidenty a ukládající sankce."],
+    ["Co upravuje kontrolní řád?", "Zákon č. 255/2012 Sb. – působnost a postup orgánů při výkonu kontroly. Kontrola se zahajuje oznámením, výsledkem je kontrolní protokol se zjištěními a závěry."],
+    ["Co je NÚKIB?", "Národní úřad pro kybernetickou a informační bezpečnost – ústřední správní úřad pro KB a kritickou informační infrastrukturu (KI). Stanovuje povinnosti, dohled a koordinuje opatření dle zákona o KB."],
+    ["Co je KI (kritická informační infrastruktura)?", "Nejdůležitější informační systémy a sítě státu, jejichž narušení by mělo závažný dopad na bezpečnost, ekonomiku nebo fungování společnosti."],
+    ["Co dělá NBÚ?", "Národní bezpečnostní úřad – provádí bezpečnostní prověrky FO a PO pro přístup k utajovaným informacím (hodnotí bezúhonnost, spolehlivost, loajalitu, rizika)."],
+    ["Jaké jsou stupně utajení u prověrky NBÚ?", "Vyhrazené, Důvěrné, Tajné, Přísně tajné. Výsledkem prověrky je vydání nebo nevydání osvědčení."],
+    ["Co dělá ÚOOÚ?", "Úřad pro ochranu osobních údajů – dohlíží na GDPR a na svobodný přístup k informacím (zákon 106/1999 Sb.). Kontroluje zpracování údajů, řeší stížnosti, ukládá sankce."],
+    ["Jaké pokuty může ukládat ÚOOÚ podle GDPR?", "Až 20 milionů EUR nebo 4 % celosvětového ročního obratu (vyšší z obou)."],
+    ["Co dělá ÚOHS?", "Úřad pro ochranu hospodářské soutěže – odhaluje kartelové dohody, zneužití dominantního (monopolního) postavení, kontroluje veřejné zakázky a fúze."],
+    ["Co dělá ČTÚ?", "Český telekomunikační úřad – reguluje elektronické komunikace, poštovní služby a rádiové spektrum, dohlíží na operátory, rozhoduje spory."],
+    ["Co dělá SÚIP?", "Státní úřad inspekce práce – dohlíží na pracovněprávní předpisy a odhaluje švarcsystém (nelegální závislou práci formou OSVČ), může ukládat sankce."],
+    ["Co je švarcsystém?", "Nelegální výkon závislé práce formálně jako podnikání (OSVČ). Postihuje ho SÚIP – sankcionovat lze zaměstnavatele i pracovníka."],
+    ["Co dělá živnostenský úřad?", "Rozhoduje o vzniku, změnách, přerušení a zániku živnostenského oprávnění; posuzuje podmínky (svéprávnost, bezúhonnost, odbornost) a kontroluje podnikatele."],
+    ["Co dělá ČOI?", "Česká obchodní inspekce – dohlíží na ochranu spotřebitele a fungování trhu (kvalita a bezpečnost výrobků, označování, reklamace, ceny), může ukládat pokuty a zákaz prodeje."],
+    ["Co je CSIRT/CERT?", "Computer Security Incident Response Team – tým pro řešení kybernetických bezpečnostních incidentů."],
+    ["Jaký je rozdíl mezi GovCERT a Národním CERT?", "GovCERT.CZ je pod NÚKIB, pro státní správu a kritickou infrastrukturu (vyšší režim). Národní CERT (CSIRT.CZ) provozuje vybraná PO, hlavně pro subjekty v nižším režimu."],
+    ["Jak probíhá kontrola podle kontrolního řádu?", "Zahájení oznámením (předmět, účel, rozsah) → shromažďování podkladů a ověřování stavu → vyjádření kontrolovaného → kontrolní protokol → případná nápravná opatření."],
+    ["Co je dohled ČNB?", "Česká národní banka dohlíží na finanční trh – banky, pojišťovny, spořitelny. V KB souvisí s nařízením DORA."],
+    ["Jaký orgán řeší ochranu osobních údajů a jaký kyberbezpečnost?", "Osobní údaje řeší ÚOOÚ (GDPR), kyberbezpečnost řeší NÚKIB (zákon o KB). Často se prolínají."],
+    ["Co je kontrolovaný subjekt a kontrolní orgán?", "Kontrolní orgán provádí kontrolu (např. ČOI, NÚKIB). Kontrolovaný subjekt je ten, u kterého kontrola probíhá; má právo vyjádřit se k zjištěním."],
+    ["Jak souvisí NÚKIB s utajovanými informacemi?", "NÚKIB odpovídá za ochranu utajovaných informací v oblasti informačních a komunikačních systémů; prověrky osob ale provádí NBÚ."],
+    ["Jaké sankce mohou dozorové orgány ukládat?", "Pokuty, nápravná opatření, zákaz činnosti/prodeje, případně odebrání oprávnění – podle své působnosti a zákona."],
+    ["Co dělá Finanční správa (správce daně)?", "Spravuje daně – kontroluje správnost výpočtu a placení daní, ukládá sankce. Není klasický „dozorový“ orgán KB, ale dohlíží na daňové povinnosti."],
+    ["Jaký je rozdíl mezi ÚOOÚ a ÚOHS?", "ÚOOÚ chrání osobní údaje a přístup k informacím. ÚOHS chrání hospodářskou soutěž (kartely, monopoly, veřejné zakázky). Snadno zaměnitelné zkratky."],
+    ["Proč jsou dozorové orgány v KB důležité?", "Zajišťují vymahatelnost povinností, sjednocují praxi, koordinují reakci na incidenty a chrání veřejný zájem v digitálním prostředí."],
+  ]},
+  { t: "13. Management", cards: [
+    ["Co je management?", "Umění a proces, jak dosáhnout cílů organizace – plánování, organizování, vedení a kontrola zaměřené na dosažení cílů."],
+    ["Jaké jsou čtyři manažerské činnosti?", "Plánování, organizování, vedení (motivování, personalistika) a kontrolování (rozhodování)."],
+    ["Co je plánování a jaké jsou druhy plánů?", "První funkce – stanovení soustavy cílů a cest k nim. Druhy: strategické (dlouhodobé), taktické (konkretizují cíle), operativní (nejkratší období)."],
+    ["Co je organizování?", "Vytváření vnitřní struktury firmy a koordinace činností pro efektivní výrobu."],
+    ["Co je liniová organizační struktura?", "Jednoznačné vazby nadřízený–podřízený (1 nadřízený). Vhodná pro malé podniky. Výhoda: jasné kompetence; nevýhoda: zdlouhavé informační toky."],
+    ["Co je funkcionální organizační struktura?", "Sdružování podle podobnosti aktivit (úseky). Pro střední podniky. Výhoda: specializace; nevýhoda: špatná koordinace mezi útvary."],
+    ["Co je liniově štábní struktura?", "Obsahuje štábní útvar specialistů s poradní funkcí. Výhoda: lepší kvalita rozhodování; nevýhoda: konflikty mezi linií a štábem."],
+    ["Co je divizní organizační struktura?", "Dělení velkých firem do divizí (podle území nebo výroby), každá má stejné útvary. Výhoda: specializace divizí; nevýhoda: soupeření divizí."],
+    ["Co je maticová organizační struktura?", "Spojení divizní a funkční struktury. Výhoda: pružnost; nevýhoda: dvojí podřízenost."],
+    ["Jaké jsou styly řízení?", "Autokratický (rozhoduje sám), liberální („na volné uzdě“, velká volnost), konzultativní (radí se, ale rozhoduje sám), demokratický (spolupracovníci se podílejí na rozhodnutích)."],
+    ["Co je demokratický styl řízení?", "Manažer přenáší část autority, dává zpětnou vazbu, naslouchá a podporuje iniciativu. Vede k aktivním, samostatným a dlouhodobě výkonným pracovníkům."],
+    ["Co zkoumá manažerská mřížka (grid)?", "Zájem o lidi a o firmu. Kategorie: ochuzený management, management venkovského klubu, autokratický a týmový management (zájem o lidi i firmu)."],
+    ["Jaký je rozdíl mezi motivací a vedením?", "Motivace = poskytování důvodů, proč práci dělat a dělat dobře. Vedení = „ukazování“ podřízeným, jak práci dělat."],
+    ["Co je Teorie XY?", "Dvě koncepce přístupu k práci: hledisko X (jedinec je líný, musí se nutit) a hledisko Y (pracovník se učí a motivuje sám, donucení netřeba)."],
+    ["Co je personalistika?", "Proces zařazování pracovníka do pracovního procesu s cílem komplexní péče. Zahrnuje plánování počtu, nábor, výběr a rozvoj pracovníků."],
+    ["Kdo byl Henri Fayol?", "Zakladatel moderního managementu. Definoval 5 funkcí: plánování, organizování, režie, koordinace, ovládání. Formuloval zásady řízení."],
+    ["Jmenuj některé Fayolovy zásady řízení.", "Specializace, autorita, disciplína, jednota přikazování (1 nadřízený), jednota vedení, odměňování, centralizace, pořádek, iniciativa, morálka kolektivu."],
+    ["Jaké jsou úrovně manažerů?", "1. stupeň – nejblíže zaměstnancům (mistři, vedoucí dílen), 2. stupeň – střední management (vedoucí úseku), 3. stupeň – TOP management (ředitelé)."],
+    ["Jaké jsou vrozené a získané vlastnosti manažera?", "Vrozené: temperament (flegmatik, sangvinik, melancholik, cholerik), inteligence (IQ, EQ). Získané: sociální a intelektuální dovednosti (osvojené studiem)."],
+    ["Jaký je rozdíl mezi formální a neformální autoritou?", "Formální (poziční) autorita plyne z funkce, do níž byl manažer ustaven. Neformální vzniká z vlastností a dovedností (odborná kompetence, morálka, charisma)."],
+    ["Jaké osobní vlastnosti by měl mít manažer?", "Vůdcovství, rozhodnost, samostatnost, iniciativu a spolehlivost. (Úspěch z 15 % odbornost, z 85 % osobnost a vůdcovství.)"],
+    ["Jaké jsou obecné principy manažerské práce?", "Princip priorit (zaměřit se na podstatné), princip prevence (čím dříve odstranit nedostatek, tím nižší ztráty), orientace na zákazníka, zásada bezvadnosti."],
+    ["Co znamená SMART u stanovení cílů?", "Specific (konkrétní), Measurable (měřitelný), Achievable (dosažitelný), Relevant (relevantní), Time-bound (časově ohraničený)."],
+    ["Co je vize, mise a cíl organizace?", "Vize = dlouhodobý žádoucí stav. Mise = poslání, proč firma existuje. Cíl = konkrétní měřitelný výsledek na cestě k vizi."],
+    ["Co je kontrola jako manažerská funkce?", "Porovnání skutečného stavu s plánem, zjištění odchylek a přijetí nápravných opatření. Uzavírá manažerský cyklus."],
+  ]},
+  { t: "14. Daňová soustava", cards: [
+    ["Co je daňová soustava?", "Souhrn všech daní uplatňovaných na území státu. Určuje, jaké daně se platí, kdo je spravuje a jak se vybírají. V ČR ji spravuje hlavně Finanční správa ČR."],
+    ["Co je daň?", "Povinná, nenávratná, zákonem stanovená opakující se platba do státního rozpočtu nebo rozpočtu obcí, vybíraná od FO a PO."],
+    ["Jak se dělí daně?", "Na přímé (platí se ze svého příjmu/majetku, nelze přenést) a nepřímé (zahrnuté v cenách zboží a služeb, platí konečný spotřebitel)."],
+    ["Které daně patří mezi přímé?", "Daň z příjmů FO, daň z příjmů PO, daň z nemovitých věcí, silniční daň."],
+    ["Které daně patří mezi nepřímé?", "Daň z přidané hodnoty (DPH), spotřební daň, ekologické daně."],
+    ["Co je daňové tvrzení a jaké má formy?", "Podání, kterým se uvádí výpočet daně. Formy: daňové přiznání, hlášení (doplňující údaje, např. k DPH) a vyúčtování daně (když plátce odvádí daň za poplatníky)."],
+    ["Jaké jsou druhy daňového přiznání?", "Řádné (v termínu), opravné (oprava chyby ještě v termínu, ruší řádné) a dodatečné (oprava chyby po termínu, uvádí jen odchylku)."],
+    ["Kdo je správce daně?", "Příslušný finanční nebo celní úřad, kterému se daň platí. Kontroluje správnost výpočtu a placení, ukládá sankce. PO patří podle sídla, FO podle trvalého bydliště."],
+    ["Kdo je plátce daně?", "FO nebo PO povinná daň vypočítat, vybrat a odvést do rozpočtu. Registruje se u správce daně, který přidělí DIČ."],
+    ["Kdo je poplatník daně?", "FO nebo PO, která ze zákona nese daňové břemeno – skutečně daň platí."],
+    ["Jaký je rozdíl mezi plátcem a poplatníkem u DPH?", "U nepřímých daní poplatník (spotřebitel) skutečně daň nese, ale plátce (prodejce) ji vybírá a odvádí státu."],
+    ["Co je zdaňovací období?", "Časový úsek, za který se daň počítá – nejčastěji kalendářní rok (u DPH měsíc nebo čtvrtletí)."],
+    ["Co je splatnost daně?", "Konečný termín, do kterého musí být daňová povinnost uhrazena."],
+    ["Co je daň z příjmů fyzických osob?", "Univerzální přímá daň ze zdanitelných příjmů jednotlivců. Odvádí se do rozpočtu obcí a krajů."],
+    ["Do jakých skupin se dělí příjmy FO?", "Příjmy ze závislé činnosti, ze samostatné činnosti, z kapitálového majetku, z nájmu a ostatní příjmy."],
+    ["Co je příjem ze závislé činnosti?", "Příjmy z pracovního poměru, funkční požitky (platy poslanců, zastupitelů) a odměny společníků s.r.o."],
+    ["Které příjmy jsou od daně osvobozeny?", "Často bezúplatné příjmy – veškeré dědění, dary v přímé linii a ve vedlejší linii od osoby žijící min. rok ve společné domácnosti, příležitostné dary do 15 000 Kč od dárce."],
+    ["Kdo je poplatníkem daně z příjmů FO?", "FO, která má v ČR bydliště nebo se zde zdržuje alespoň 183 dnů v roce. Daní příjmy z ČR i ze zahraničí."],
+    ["Kdo odvádí daň z příjmů u zaměstnance?", "Zaměstnavatel odvádí měsíční zálohy a po roce provede vyúčtování. Při příjmech od více zaměstnavatelů si zaměstnanec podává přiznání sám."],
+    ["Jak může OSVČ uplatnit výdaje?", "Skutečné výdaje (daňová evidence/účetnictví) nebo výdaje procentem z příjmů (paušál). Rozhodne se podle toho, co je výhodnější – při paušálu stačí evidence příjmů."],
+    ["Co lze odečíst od základu daně (§ 15)?", "Hodnotu daru na veřejně prospěšné účely (2–15 % základu, min. 1000 Kč), zaplacené úroky z úvěru na bydlení, příspěvky na doplňkové penzijní spoření."],
+    ["Co je DPH?", "Nepřímá daň ze spotřeby, vybíraná v každé fázi z přidané hodnoty. Odvod = DPH na výstupu − DPH na vstupu."],
+    ["Co je daň z příjmů právnických osob?", "Přímá daň ze základu daně PO (rozdíl výnosů a nákladů upravený podle zákona)."],
+    ["Co je daň z nemovitých věcí a silniční daň?", "Majetkové přímé daně. Daň z nemovitých věcí platí vlastník pozemků a staveb; silniční daň se týká vozidel používaných k podnikání."],
+    ["Co je daňový přeplatek a nedoplatek?", "Nedoplatek = daň je vyšší než zaplacené zálohy (doplatí se). Přeplatek = zaplaceno víc; lze požádat o vrácení nebo ponechat jako zálohu."],
+  ]},
+  { t: "15. Osobní finance", cards: [
+    ["Co jsou osobní finance?", "Finance, o kterých rozhoduje jednotlivec či rodina – jak získávají peníze, řeší rozpočet, šetří a utrácejí s ohledem na rizika a budoucí situace."],
+    ["Co je rodinný rozpočet?", "Plán finančního hospodaření domácnosti, jehož smyslem je získat kontrolu nad finanční situací rodiny, snížit zbytečné výdaje a předejít zadlužování."],
+    ["Jak se dělí příjmy domácnosti?", "Pravidelné (mzdy, příjmy z podnikání, sociální dávky, nájem) a nepravidelné (odměny, úroky, dědictví, dary)."],
+    ["Jak se dělí výdaje domácnosti?", "Nutné (nájem, splátky, energie, potraviny) a zbytné (rekreace, restaurace, nové auto, koníčky)."],
+    ["Jaké typy může mít rodinný rozpočet?", "Vyrovnaný (příjmy = výdaje), přebytkový (příjmy > výdaje) a schodkový (příjmy < výdaje)."],
+    ["Co je rozvaha domácnosti?", "Přehled o majetku a závazcích rodiny – sleduje celkový stav financí."],
+    ["Co jsou osobní aktiva a pasiva?", "Aktiva = majetek přinášející příjmy (cenné papíry, nemovitosti k pronájmu, autorská práva). Pasiva = majetek vytvářející výdaje (auto a nemovitost k osobní spotřebě)."],
+    ["Co je čisté jmění domácnosti?", "Rozdíl mezi tržní cenou majetku a finančními závazky. Je-li majetek menší než dluhy, je domácnost zadlužená."],
+    ["Co je předlužení?", "Stav, kdy dlužník nemůže splácet půjčky ze svého příjmu po odečtení běžných nákladů. Předchází se mu rezervou a vyhýbáním se špatným úvěrům."],
+    ["Co je špatný úvěr?", "Úvěr na zbytné věci (dovolená, dárky), s vysokými úroky, nebo úvěr na splácení jiného úvěru."],
+    ["Jaké jsou možnosti spoření?", "Bankovní vklady (min. riziko, vysoká likvidita), stavební spoření a penzijní připojištění (min. riziko, nízká likvidita, dlouhodobé), životní pojištění."],
+    ["Jaké jsou možnosti investování?", "Podílové fondy (výnos 2–5 %), dluhopisy (nízké riziko), akcie (vysoké riziko, výnos cca 8 %+), investice do majetku a podnikání (vysoké riziko)."],
+    ["Jaký je vztah rizika, likvidity a výnosu?", "Vyšší výnos obvykle znamená vyšší riziko. Likvidita = jak rychle lze aktivum přeměnit na hotovost. Při investování je třeba je porovnat."],
+    ["Co je likvidita?", "Schopnost rychle přeměnit aktivum na hotovost bez ztráty hodnoty. Vklady mají vysokou likviditu, nemovitosti nízkou."],
+    ["Co je diverzifikace?", "Rozložení investic pro snížení rizika („nedávej všechna vejce do jednoho košíku“)."],
+    ["Jaké jsou kroky sestavení rodinného rozpočtu?", "1) Přehled příjmů (čisté, po zdanění), 2) seznam výdajů (nutné/zbytné), 3) porovnání příjmů a výdajů, 4) přehodnocení a úprava, 5) aktualizace rozpočtu."],
+    ["Proč se příjmy počítají jako čisté?", "Protože se započítávají až po zdanění – jen tyto peníze má domácnost reálně k dispozici."],
+    ["Jaká rizika ohrožují rozpočet domácnosti?", "Ztráta příjmů (nezaměstnanost, nemoc, krach podnikání) a ztráta majetku (živelní události, krádež)."],
+    ["Jaké jsou tři oblasti zajištění proti rizikům?", "Náhrada příjmů (pojištění nemoci, úrazu, životní), obnova majetku (havarijní, pojištění nemovitosti a domácnosti) a ochrana proti vzniku výdajů (pojištění odpovědnosti)."],
+    ["Co je pojištění odpovědnosti?", "Pojištění chránící proti výdajům za škody, které pojištěný způsobí jinému (např. „pojistka na blbost“)."],
+    ["Co je úrok a RPSN?", "Úrok = cena za půjčení peněz. RPSN = roční procentní sazba nákladů, zahrnuje i poplatky a ukazuje skutečnou cenu úvěru. Při srovnávání úvěrů porovnávej RPSN."],
+    ["Co je složené úročení?", "Úroky se přičítají k jistině a dále se úročí – peníze rostou exponenciálně. Výhodné při dlouhodobém spoření a investování."],
+    ["Jak velkou finanční rezervu mít?", "Doporučuje se 3–6 měsíčních výdajů na krytí nečekaných situací (ztráta příjmu, oprava)."],
+    ["Jak se chránit při online financích?", "Pozor na phishing, zabezpečit internetové bankovnictví (MFA, silné heslo), nikdy nesdělovat PIN, hesla ani kódy z SMS."],
+    ["Co je kontokorent a leasing?", "Kontokorent = možnost čerpat účet do mínusu (úvěr k běžnému účtu). Leasing = pronájem věci (např. auta) s možností odkupu; oba patří mezi závazky domácnosti."],
+  ]},
+  { t: "16. Marketing", cards: [
+    ["Co je marketing?", "Proces řízení, jehož výsledkem je poznání, předvídání, ovlivňování a uspokojování potřeb zákazníka při zajištění cílů organizace."],
+    ["Jaké jsou podnikatelské koncepce?", "Výrobní (levnější výrobek), výrobková (kvalitnější výrobek), prodejní (důraz na prodej a reklamu), marketingová (uspokojování potřeb zákazníka) a sociální (potřeby zákazníka i společnosti)."],
+    ["Co je výrobní koncepce?", "Důraz na zvýšení objemu výroby a zlevnění výrobku. Heslo: levnější výrobek (více vyrobím, levněji prodám). Např. Baťa, Ford."],
+    ["Co je marketingová koncepce?", "Vyrábět to, co si přeje zákazník, a uspokojovat jeho potřeby. Heslo: uspokojování potřeb zákazníka."],
+    ["Co je sociální marketingová koncepce?", "Vychází z marketingové, ale usiluje o soulad s celospolečenskými etickými zájmy. Heslo: uspokojování potřeb zákazníka i společnosti (např. ekologické výrobky)."],
+    ["Co je mikroprostředí marketingu?", "Faktory lépe ovlivnitelné firmou: konkurence, partneři (dodavatelé, banka), zákazníci a veřejnost."],
+    ["Co je makroprostředí marketingu?", "Faktory málo ovlivnitelné firmou: ekonomické, demografické, přírodní, technologické, politické (zákony) a kulturní vlivy."],
+    ["Co je SWOT analýza?", "Posuzuje předpoklady firmy. Vnitřní faktory = silné (S) a slabé (W) stránky; vnější faktory = příležitosti (O) a hrozby (T). Pomáhá při plánování."],
+    ["Jaké jsou SWOT strategie?", "SO ofenzivní (silné stránky + příležitosti), ST defenzivní (silné stránky proti hrozbám), WO spojenectví (příležitosti k odstranění slabin), WT úniku/likvidace."],
+    ["Co je marketingový výzkum a jeho kroky?", "Zkoumání trhů, výrobků, cen a chování zákazníka. Kroky: definování problému, plán výzkumu, sběr informací, analýza údajů, závěry a doporučení."],
+    ["Jaký je rozdíl mezi kvantitativním a kvalitativním výzkumem?", "Kvantitativní = velká skupina respondentů (dotazník). Kvalitativní = menší vzorek, hlubší interpretace (rozhovor)."],
+    ["Jaké jsou základní metody marketingového výzkumu?", "Pozorování (chování, ale ne motivy), průzkum (dotazníky, pohovory – motivy a názory) a experiment (laboratorní nebo terénní)."],
+    ["Co je marketingový mix 4P?", "Product (produkt), Price (cena), Place (distribuce/místo), Promotion (propagace) – nástroje z pohledu firmy."],
+    ["Co je marketingový mix 4C?", "Pohled zákazníka: Customer value (hodnota pro zákazníka), Convenience (pohodlí), Cost (náklady), Communication (komunikace)."],
+    ["Co je produkt a komplexní produkt?", "Produkt = hmotný statek, služba nebo myšlenka uspokojující potřeby. Komplexní produkt zahrnuje i rozšířený výrobek (servis, záruka, poradenství, distribuce)."],
+    ["Jaké jsou fáze životního cyklu výrobku?", "Zavádění (nízký prodej, velká reklama), růst, zralost (nejdelší fáze, ustálený prodej, snížení cen) a útlum."],
+    ["Co je BCG analýza?", "Hodnocení portfolia produktů podle míry růstu trhu a podílu na trhu. Kategorie: hvězdy, dojné krávy, otazníky a bídní psi (produkty na útlum)."],
+    ["Co je cena a jaké jsou strategie jejího stanovení?", "Cena = hodnota produktu v penězích. Strategie: skimming (vysoká cena, postupně snižovaná), penetrace (nízká cena pro průnik na trh), diskriminační (různé ceny na různých trzích)."],
+    ["Co je skimming?", "Strategie, kdy firma stanoví novému výrobku vysokou cenu a po čase ji snižuje. Časté u technologických novinek."],
+    ["Co je penetrace (penetrační cena)?", "Cena nižší než u konkurence pro rychlý průnik na trh a získání podílu, často za cenu dočasné ztráty."],
+    ["Co je distribuce (place)?", "Zajišťuje, aby byl správný výrobek na správném místě ve správný čas. Zahrnuje pohyb produktu od výrobce ke spotřebiteli."],
+    ["Co je propagace (komunikační mix)?", "Nástroje komunikace se zákazníkem: reklama, podpora prodeje, public relations, osobní prodej, přímý marketing, sponzoring."],
+    ["Co je reklama?", "Placená neosobní forma masové komunikace (inzerce, TV a rozhlasové spoty, vnější reklama). Cíl: získat nové a udržet stálé zákazníky."],
+    ["Co je sponzoring?", "Finanční podpora události na základě služby a protislužby. Cílem je prezentace firmy a její reklama."],
+    ["Co je segmentace trhu a positioning?", "Segmentace = rozdělení zákazníků do skupin podle potřeb. Positioning = umístění produktu v mysli zákazníka vůči konkurenci."],
+  ]},
+{ t: "17. ISMS", cards: [
+    ["Co je ISMS?", "Information Security Management System – systematický procesní přístup k řízení bezpečnosti informací (politiky, procesy, lidé, technologie)."],
+    ["Která norma definuje ISMS?", "ISO/IEC 27001 – stanovuje požadavky na zavedení, provoz a zlepšování ISMS. Organizace na ni může získat certifikaci."],
+    ["Co popisuje ISO/IEC 27002?", "Katalog konkrétních bezpečnostních opatření (best practices), z nichž organizace vybírá podle svých rizik."],
+    ["Co je cílem ISMS?", "Zajistit triádu CIA – důvěrnost, integritu a dostupnost informací – a systematicky řídit rizika."],
+    ["Co je triáda CIA?", "Důvěrnost (Confidentiality – jen pro oprávněné), integrita (Integrity – data nezměněna), dostupnost (Availability – data k dispozici, když jsou potřeba)."],
+    ["Jaké atributy doplňují CIA?", "Autenticita (pravost), nepopiratelnost (non-repudiation) a odpovědnost (accountability)."],
+    ["Co je PDCA cyklus v ISMS?", "Plan (analýza rizik, cíle, politika), Do (zavedení opatření), Check (audity, měření účinnosti), Act (zlepšení, náprava). Nikdy nekončící cyklus."],
+    ["Co se děje ve fázi Plan?", "Stanovení rozsahu ISMS, analýza a hodnocení rizik, výběr opatření a tvorba bezpečnostní politiky."],
+    ["Co se děje ve fázi Check?", "Monitorování, interní audity, měření účinnosti opatření a přezkoumání systému vedením."],
+    ["Jmenuj klíčové procesy ISMS.", "Řízení aktiv, řízení rizik, řízení přístupů, zvládání incidentů, řízení kontinuity (BCM), řízení dodavatelů a řízení souladu (compliance)."],
+    ["Co je řízení rizik v ISMS?", "Identifikace aktiv a hrozeb, analýza rizik (pravděpodobnost × dopad), výběr způsobu ošetření a monitorování zbytkového rizika."],
+    ["Jaké jsou způsoby ošetření rizika?", "Snížení (zavedení opatření), přenesení (pojištění, outsourcing), vyhnutí se (ukončení činnosti) a akceptace (přijetí rizika)."],
+    ["Co je SoA (Prohlášení o aplikovatelnosti)?", "Dokument uvádějící, která opatření z ISO 27002 organizace používá a proč (případně proč některá nepoužívá)."],
+    ["Co je bezpečnostní politika v ISMS?", "Nejvyšší dokument stanovující cíle a pravidla bezpečnosti, schválený vedením. Z ní vychází směrnice a postupy."],
+    ["Je ISMS jen o technologii?", "Ne. ISMS je systém řízení – zahrnuje lidi, procesy i techniku, ne pouze technologická opatření."],
+    ["Co je certifikace ISO 27001?", "Nezávislé ověření, že ISMS organizace splňuje požadavky normy. Slouží jako důkaz vyspělosti vůči zákazníkům a partnerům."],
+    ["Co je zbytkové riziko?", "Riziko, které zůstává po zavedení opatření. Musí ho schválit (akceptovat) vedení organizace."],
+    ["Co je vlastník rizika?", "Osoba odpovědná za konkrétní riziko a za rozhodnutí o jeho ošetření."],
+    ["Jaký je rozdíl mezi hrozbou, zranitelností a rizikem?", "Hrozba = možná příčina incidentu. Zranitelnost = slabé místo. Riziko = pravděpodobnost, že hrozba zneužije zranitelnost, × dopad."],
+    ["Co je řízení kontinuity (BCM) v rámci ISMS?", "Zajištění, že kritické činnosti pokračují i během incidentu, a jejich rychlá obnova. Souvisí s plány BCP/DRP."],
+    ["Co je interní a externí audit ISMS?", "Interní audit provádí organizace sama (kontrola plnění). Externí (certifikační) audit provádí nezávislá certifikační autorita."],
+    ["Co je klasifikace informací?", "Rozdělení informací podle citlivosti (veřejné, interní, důvěrné, tajné) pro určení míry ochrany."],
+    ["Co znamená souhlasit s rozsahem (scope) ISMS?", "Vymezení, na které části organizace, aktiva a procesy se ISMS vztahuje. Mimo rozsah opatření neplatí."],
+    ["Jak souvisí ISMS s nZKB a NIS2?", "nZKB (transpozice NIS2) vyžaduje u regulovaných subjektů zavedení systému řízení bezpečnosti informací – fakticky ISMS s řízením rizik a opatření."],
+    ["Proč je podpora vedení pro ISMS klíčová?", "Vedení schvaluje politiku, přiděluje zdroje a akceptuje zbytková rizika. Bez jeho podpory ISMS nefunguje (princip „shora dolů“)."],
+  ]},
+  { t: "18. Aktiva IT", cards: [
+    ["Co je aktivum?", "Vše, co má pro organizaci hodnotu a co je třeba chránit. Identifikace aktiv je prvním krokem řízení rizik."],
+    ["Jaký je rozdíl mezi primárními a podpůrnými aktivy?", "Primární = informace/data a procesy (to hlavní). Podpůrná = hardware, software, sítě, personál, lokality (slouží primárním aktivům)."],
+    ["Co jsou primární aktiva?", "Informace/data (databáze, dokumenty, osobní údaje, zdrojový kód) a procesy/služby organizace."],
+    ["Co jsou podpůrná aktiva?", "Hardware (servery, počítače), software (OS, aplikace), sítě (kabeláž, Wi-Fi), personál (znalosti) a lokality (budovy, serverovny)."],
+    ["Podle čeho se určuje hodnota aktiva?", "Podle dopadu jeho narušení na triádu CIA (důvěrnost, integrita, dostupnost), ne jen podle pořizovací ceny."],
+    ["Jak se hodnotí důvěrnost aktiva?", "Podle citlivosti informací – jak závažné by bylo jejich vyzrazení neoprávněné osobě."],
+    ["Jak se hodnotí dostupnost aktiva?", "Podle toho, jak rychle organizace potřebuje aktivum zpět a jak velký dopad má jeho výpadek (souvisí s RTO)."],
+    ["Jak se klasifikují aktiva?", "Podle citlivosti, např.: veřejné, interní, důvěrné, přísně tajné/kritické. Klasifikace určuje míru ochrany."],
+    ["Kdo je garant (vlastník) aktiva?", "Osoba odpovědná za ochranu aktiva, jeho klasifikaci a přidělování přístupových oprávnění."],
+    ["Co je registr (evidence) aktiv?", "Seznam všech aktiv s jejich hodnotou, garantem a klasifikací. Základ analýzy rizik – nelze chránit to, o čem nevíme."],
+    ["Co je CMDB?", "Configuration Management Database – databáze konfiguračních položek (aktiv) a jejich vzájemných vazeb, využívaná ve správě IT a bezpečnosti."],
+    ["Proč je evidence aktiv prvním krokem řízení rizik?", "Bez znalosti aktiv nelze určit hrozby, zranitelnosti ani rizika. Neevidované aktivum nelze chránit."],
+    ["Co je životní cyklus aktiva?", "Pořízení → provoz a údržba → klasifikace a ochrana → vyřazení (bezpečná likvidace dat). Bezpečnost se řeší v celém cyklu."],
+    ["Proč jsou data nejdůležitějším aktivem?", "Protože jsou nenahraditelná a často nejcennější – hardware lze koupit znovu, ztracená nebo unikla data nikoli."],
+    ["Je personál aktivem?", "Ano – zaměstnanci a jejich znalosti jsou podpůrné aktivum. Odchod klíčové osoby je riziko (ztráta know-how)."],
+    ["Co je bezpečná likvidace dat?", "Trvalé a neobnovitelné odstranění dat při vyřazení aktiva (přepis, fyzické zničení nosiče), aby nedošlo k úniku."],
+    ["Jak souvisí klasifikace aktiv s přístupovými právy?", "Čím citlivější klasifikace, tím přísnější řízení přístupu (kdo a za jakých podmínek smí aktivum používat)."],
+    ["Co je hodnocení dopadu (impact)?", "Odhad následků narušení aktiva (finanční, reputační, právní, ohrožení provozu nebo životů). Vstupuje do analýzy rizik."],
+    ["Jak souvisí aktiva s analýzou rizik?", "Riziko se počítá pro každé aktivum: jeho hodnota × hrozba × zranitelnost. Cennější aktiva vyžadují silnější ochranu."],
+    ["Co je inventarizace aktiv?", "Pravidelné ověřování úplnosti a aktuálnosti registru aktiv – aby evidence odpovídala skutečnosti."],
+    ["Co je primární aktivum podle nZKB?", "Poskytovaná regulovaná služba nebo informace; na ně navazují podpůrná aktiva (technika, lidé), na něž se vztahují povinnosti zákona."],
+    ["Proč nelze hodnotu aktiva určit jen cenou?", "Protože malá levná položka (např. databáze hesel) může mít obrovský dopad při zneužití. Rozhoduje dopad na CIA, ne cena."],
+    ["Co je informační aktivum?", "Jakákoli informace, která má pro organizaci hodnotu – databáze, smlouvy, know-how, osobní údaje."],
+    ["Co je kritické aktivum?", "Aktivum, jehož narušení by mělo zásadní dopad na fungování organizace (např. hlavní databáze, klíčový server)."],
+    ["Jak souvisí aktiva s rozsahem ISMS?", "Rozsah ISMS se určuje právě podle aktiv – která aktiva chráníme, na ta se vztahují bezpečnostní opatření."],
+  ]},
+  { t: "19. Zranitelnost aktiva", cards: [
+    ["Co je zranitelnost?", "Slabé místo aktiva nebo opatření, které může být zneužito hrozbou. Sama o sobě nezpůsobí škodu, ale otevírá cestu útoku."],
+    ["Jak souvisí zranitelnost, hrozba a riziko?", "Hrozba využije zranitelnost → vznikne incident → škoda. Riziko = pravděpodobnost, že hrozba zneužije zranitelnost, × dopad."],
+    ["Jmenuj kategorie zranitelností.", "Technické (neaktualizovaný SW, chyby v kódu), konfigurační (výchozí hesla), organizační (chybějící politiky), fyzické (nezabezpečená serverovna), lidské (phishing)."],
+    ["Co jsou technické zranitelnosti?", "Neaktualizovaný software, chyby v kódu, slabé šifrování, otevřené porty, neopravené chyby aplikací."],
+    ["Co jsou konfigurační zranitelnosti?", "Výchozí hesla, špatně nastavená oprávnění, zbytečné běžící služby, nedostatečné nastavení zabezpečení."],
+    ["Co jsou lidské zranitelnosti?", "Náchylnost uživatelů k phishingu a sociálnímu inženýrství, slabá hesla, neopatrné chování."],
+    ["Co je zero-day zranitelnost?", "Zranitelnost, kterou útočníci zneužívají dříve, než pro ni existuje oprava. Obrana je velmi obtížná."],
+    ["Jaký je životní cyklus zranitelnosti?", "Vznik (chyba v kódu) → objevení → zveřejnění (CVE) → vydání záplaty dodavatelem → nasazení záplaty u zákazníka (patch management)."],
+    ["Co je CVE?", "Common Vulnerabilities and Exposures – jednotný katalog a identifikátor známých zranitelností."],
+    ["Co je CVSS?", "Common Vulnerability Scoring System – skóre závažnosti zranitelnosti 0–10 (Critical, High, Medium, Low)."],
+    ["Co je vulnerability scanning?", "Automatické skenování systémů na známé zranitelnosti pomocí nástrojů (Nessus, OpenVAS)."],
+    ["Co je patch management?", "Proces pravidelného nasazování aktualizací a záplat, aby se odstranily známé zranitelnosti."],
+    ["Co je hardening?", "Zpevnění systému – odstranění zbytečných služeb, změna výchozích nastavení a hesel, omezení oprávnění."],
+    ["Co je secure coding?", "Bezpečné programování – psaní kódu odolného vůči zranitelnostem (validace vstupů, ošetření chyb)."],
+    ["Jak snižovat zranitelnosti?", "Patch management, hardening, bezpečné programování, pravidelné skeny a penetrační testy, školení uživatelů."],
+    ["Co je expozice (exposure)?", "Míra, do jaké je aktivum vystaveno hrozbám (např. server dostupný z internetu má vyšší expozici než interní)."],
+    ["Co je attack surface (útočná plocha)?", "Souhrn všech míst, kudy se útočník může pokusit proniknout (porty, služby, vstupy aplikací, uživatelé). Cílem je ji zmenšovat."],
+    ["Jaký je rozdíl mezi známou a neznámou zranitelností?", "Známá má přidělené CVE a obvykle i záplatu. Neznámá (zero-day) ještě nebyla zveřejněna ani opravena."],
+    ["Co je riziková analýza zranitelností?", "Vyhodnocení nalezených zranitelností podle závažnosti (CVSS) a dopadu, určení priorit oprav."],
+    ["Proč jsou výchozí hesla nebezpečná?", "Jsou veřejně známá a útočníci je zkoušejí jako první. Patří mezi nejčastější konfigurační zranitelnosti."],
+    ["Co je misconfiguration?", "Chybná konfigurace systému nebo služby (otevřené sdílení, slabá oprávnění), která vytváří zranitelnost."],
+    ["Jak souvisí zranitelnosti s aktualizacemi?", "Většina zneužitých zranitelností je známá a má záplatu – včasné aktualizace jsou nejúčinnější obranou."],
+    ["Co je penetrační test ve vztahu ke zranitelnostem?", "Aktivní ověření, zda nalezené zranitelnosti lze skutečně zneužít – jde dál než pouhý sken."],
+    ["Co je responsible disclosure?", "Zodpovědné zveřejnění – nálezce nahlásí zranitelnost dodavateli a dá mu čas na opravu, než ji zveřejní."],
+    ["Co je bug bounty?", "Program, v němž organizace odměňuje nálezce, kteří jí nahlásí zranitelnosti místo jejich zneužití."],
+  ]},
+  { t: "20. Kybernetické hrozby", cards: [
+    ["Co je hrozba?", "Potenciální příčina nežádoucího incidentu, která může poškodit aktivum. Útočník využívá zranitelnosti k naplnění hrozby."],
+    ["Jaké jsou zdroje hrozeb?", "Vnější útočníci (hackeři, organizovaný zločin, APT), vnitřní hrozby (nespokojení/neopatrní zaměstnanci) a náhodné/přírodní (selhání HW, požár, povodeň)."],
+    ["Co je malware?", "Škodlivý software navržený k poškození, narušení nebo neoprávněnému přístupu k systému."],
+    ["Jaký je rozdíl mezi virem a červem?", "Virus se šíří připojením k souboru a potřebuje hostitele. Červ (worm) se šíří samostatně po síti bez zásahu uživatele."],
+    ["Co je trojský kůň?", "Malware, který se tváří jako legitimní program, ale skrytě provádí škodlivou činnost."],
+    ["Co je ransomware?", "Malware, který zašifruje data a žádá výkupné za jejich odemčení. Obrana: zálohy (3-2-1), aktualizace, školení."],
+    ["Co je spyware a keylogger?", "Spyware špehuje uživatele a krade údaje. Keylogger zaznamenává stisky kláves (např. hesla)."],
+    ["Co je rootkit?", "Malware, který skrývá přítomnost útočníka a jeho aktivity v systému, často s nejvyššími oprávněními."],
+    ["Co je botnet?", "Síť napadených zařízení („zombie“) ovládaná útočníkem na dálku, často používaná pro DDoS útoky nebo rozesílání spamu."],
+    ["Co je phishing?", "Podvodné e-maily nebo zprávy lákající přihlašovací údaje nebo k otevření škodlivé přílohy/odkazu."],
+    ["Jaké jsou varianty phishingu?", "Spear phishing (cílený na osobu), whaling (na vedení), vishing (telefon), smishing (SMS)."],
+    ["Co je sociální inženýrství?", "Manipulace lidí, aby vyzradili informace nebo provedli akci. Patří sem phishing, pretexting (záminka), baiting (návnada, např. USB)."],
+    ["Co je DoS a DDoS útok?", "Denial of Service – zahlcení služby požadavky → nedostupnost. DDoS = distribuovaný, z mnoha zařízení (botnet) najednou."],
+    ["Co je Man-in-the-Middle (MitM)?", "Útok, při kterém se útočník vloží do komunikace a odposlouchává nebo mění přenášená data."],
+    ["Co je SQL injection?", "Vložení škodlivého SQL kódu do vstupu aplikace, které umožní neoprávněný přístup k databázi."],
+    ["Co je XSS (Cross-Site Scripting)?", "Vložení škodlivého skriptu do webové stránky, který se spustí v prohlížeči jiných uživatelů."],
+    ["Co je brute force útok?", "Hádání hesla nebo klíče hrubou silou – systematické zkoušení všech možných kombinací."],
+    ["Co je APT?", "Advanced Persistent Threat – sofistikovaný, dlouhodobý a cílený útok (často státem podporovaný), který zůstává dlouho skrytý."],
+    ["Co je insider threat (vnitřní hrozba)?", "Hrozba ze strany osoby uvnitř organizace (zaměstnanec, dodavatel) – úmyslná (zlý úmysl) nebo neúmyslná (chyba, nedbalost)."],
+    ["Co je zero-day útok?", "Útok zneužívající zranitelnost, pro kterou ještě neexistuje oprava. Obrana je velmi obtížná."],
+    ["Co je supply chain útok?", "Útok přes dodavatele nebo software třetí strany – útočník kompromituje důvěryhodný zdroj, aby zasáhl jeho zákazníky."],
+    ["Co je credential stuffing?", "Zneužití uniklých dvojic jméno/heslo k automatizovanému přihlašování do dalších služeb (lidé opakují hesla)."],
+    ["Co je drive-by download?", "Stažení malwaru do zařízení pouhým navštívením kompromitované webové stránky, bez vědomého souhlasu uživatele."],
+    ["Proč je člověk nejčastější vstupní branou útoku?", "Protože sociální inženýrství obchází technická opatření přes lidskou důvěřivost. Proto je školení uživatelů klíčové."],
+    ["Co je phishingová simulace?", "Cvičný phishing rozeslaný vlastním zaměstnancům k otestování a zvýšení jejich ostražitosti."],
+  ]},
+  { t: "21. Bezpečnostní opatření", cards: [
+    ["Co jsou bezpečnostní opatření (controls)?", "Prostředky ke snížení rizika – brání vzniku incidentu, omezují jeho dopad nebo umožní detekci a obnovu."],
+    ["Jak dělíme opatření podle typu?", "Organizační (politiky, školení), technická (firewall, šifrování), fyzická (zámky, kamery), personální (prověrky, NDA, osvěta)."],
+    ["Jak dělíme opatření podle funkce?", "Preventivní (zabraňují – firewall), detekční (odhalí – IDS, logy), reaktivní/nápravná (obnoví – zálohy, plán obnovy)."],
+    ["Co jsou organizační opatření?", "Politiky, směrnice, procesy, role a školení – netechnická opatření řídící chování a odpovědnosti."],
+    ["Co jsou technická opatření?", "Technologické prvky ochrany: firewall, antivir, šifrování, IDS/IPS, MFA, segmentace sítě."],
+    ["Co jsou fyzická opatření?", "Ochrana prostor a hardwaru: zámky, kamery, čipové karty, zabezpečené serverovny, ostraha."],
+    ["Co je firewall?", "Zařízení/software filtrující síťový provoz podle pravidel – propouští povolený a blokuje nežádoucí. Preventivní opatření."],
+    ["Co je IDS a IPS?", "IDS (Intrusion Detection System) detekuje průniky. IPS (Intrusion Prevention System) je i aktivně blokuje."],
+    ["Co je antivirus a EDR?", "Antivirus chrání před známým malwarem. EDR (Endpoint Detection and Response) navíc průběžně sleduje a reaguje na podezřelé chování koncových stanic."],
+    ["Co je šifrování a kde se používá?", "Převod dat do nečitelné podoby. Chrání data v klidu (šifrování disku) i při přenosu (TLS, VPN). Zajišťuje důvěrnost."],
+    ["Co je VPN?", "Virtual Private Network – šifrovaný tunel pro bezpečný přenos dat přes nedůvěryhodnou síť (např. internet)."],
+    ["Co je MFA?", "Vícefaktorové ověření. Faktory: něco vím (heslo), něco mám (token, telefon), něco jsem (biometrie)."],
+    ["Co je segmentace sítě?", "Rozdělení sítě na oddělené části (VLAN, DMZ), aby se útok nešířil a aby se oddělily systémy s různou citlivostí."],
+    ["Co je DMZ?", "Demilitarizovaná zóna – oddělená síťová oblast mezi vnitřní sítí a internetem, kam se umísťují veřejně dostupné služby (web, mail)."],
+    ["Jaký je rozdíl mezi autentizací a autorizací?", "Autentizace = ověření identity (kdo jsi). Autorizace = přidělení oprávnění (co smíš dělat)."],
+    ["Co je princip nejmenších oprávnění?", "Least privilege – uživatel/proces má jen ta oprávnění, která nezbytně potřebuje. Omezuje dopad zneužití účtu."],
+    ["Co je RBAC?", "Role-Based Access Control – řízení přístupu podle rolí místo jednotlivců. Usnadňuje správu oprávnění."],
+    ["Co je defense in depth?", "Vrstvená obrana – více nezávislých vrstev ochrany (fyzická, síťová, aplikační, datová), aby selhání jedné neznamenalo prolomení celku."],
+    ["Co je zálohování a pravidlo 3-2-1?", "Pořizování kopií dat pro obnovu. Pravidlo 3-2-1: 3 kopie, 2 různá média, 1 mimo lokalitu (off-site)."],
+    ["Co je logování a monitoring?", "Zaznamenávání událostí v systémech a jejich průběžné sledování – detekční opatření umožňující odhalit incidenty."],
+    ["Co je SIEM?", "Security Information and Event Management – systém sbírající a analyzující logy z mnoha zdrojů pro detekci hrozeb."],
+    ["Co je honeypot?", "Záměrně zranitelný „návnadový“ systém, který láká útočníky, aby bylo možné je odhalit a studovat jejich postup."],
+    ["Co je zálohovací strategie a obnova?", "Plán, jak a jak často zálohovat a jak data obnovit. Zálohy je nutné pravidelně testovat (jinak nemusí fungovat)."],
+    ["Co je antivirová a antispamová ochrana e-mailu?", "Filtrování příchozí pošty na malware a podvodné zprávy – významně snižuje úspěšnost phishingu."],
+    ["Proč je důležitá kombinace opatření (prevence–detekce–reakce)?", "Žádné opatření není stoprocentní; kombinace prevence, detekce a reakce zajistí, že útok je buď zastaven, nebo včas odhalen a zvládnut."],
+  ]},
+{ t: "22. BCDR a krizové řízení", cards: [
+    ["Co znamená BCDR?", "Business Continuity (kontinuita činností) + Disaster Recovery (obnova po havárii). Cíl: přežít incident a co nejrychleji obnovit provoz."],
+    ["Co je BCM (Business Continuity Management)?", "Řízení kontinuity činností – udržení klíčových procesů i během krize a jejich plánovaná obnova."],
+    ["Jaký je rozdíl mezi BCP a DRP?", "BCP (Business Continuity Plan) = jak udržet fungování organizace během krize. DRP (Disaster Recovery Plan) = jak obnovit IT systémy po havárii."],
+    ["Co je BIA?", "Business Impact Analysis – analýza dopadů: které procesy jsou kritické a jaký dopad má jejich výpadek. Určuje priority obnovy."],
+    ["Co je RTO?", "Recovery Time Objective – za jak dlouho musí být služba obnovena (maximální přijatelná doba výpadku)."],
+    ["Co je RPO?", "Recovery Point Objective – kolik dat si můžeme dovolit ztratit, tedy jak staré zálohy postačují (jak často zálohovat)."],
+    ["Uveď příklad RTO a RPO.", "RPO 1 hodina = zálohujeme alespoň každou hodinu. RTO 4 hodiny = systém musí běžet do 4 hodin od výpadku."],
+    ["Jaký je rozdíl mezi RTO a RPO?", "RTO = ČAS obnovy (jak dlouho výpadek). RPO = množství ztracených DAT (jak staré zálohy). Časté zaměnění u zkoušky."],
+    ["Co je pravidlo zálohování 3-2-1?", "3 kopie dat, na 2 různých médiích, 1 kopie mimo lokalitu (off-site)."],
+    ["Jaké jsou typy záložních lokalit?", "Hot site (okamžitě připravená, drahá), warm site (částečně připravená) a cold site (jen prostor bez vybavení, levná)."],
+    ["Co je redundance?", "Zdvojení klíčových prvků, aby výpadek jednoho neohrozil provoz – např. RAID (disky), clustery (servery), záložní napájení (UPS, diesel)."],
+    ["Co je RAID?", "Redundant Array of Independent Disks – zapojení více disků pro zvýšení spolehlivosti (data přežijí výpadek disku) nebo výkonu."],
+    ["Co je UPS?", "Uninterruptible Power Supply – záložní zdroj napájení, který překlene krátký výpadek proudu a umožní bezpečné vypnutí nebo přepnutí na generátor."],
+    ["Jaké jsou fáze krizového řízení?", "Prevence a příprava (plány, cvičení), detekce a vyhlášení krize, reakce (krizový tým), obnova provozu a poučení (lessons learned)."],
+    ["Co je krizový tým?", "Skupina odpovědná za řízení organizace během krize – aktivuje plány, koordinuje reakci a komunikaci."],
+    ["Jaké jsou fáze zvládání incidentu?", "Detekce → analýza → zadržení (containment) → odstranění (eradikace) → obnova → poučení (lessons learned)."],
+    ["Co je containment (zadržení)?", "Omezení šíření incidentu – izolace napadeného systému, aby se útok nešířil dál."],
+    ["Co je eradikace?", "Odstranění příčiny incidentu ze systému (malware, kompromitovaný účet, zranitelnost) před obnovou provozu."],
+    ["Proč je důležité testování plánů obnovy?", "Netestovaný plán nebo záloha nemusí v krizi fungovat. Pravidelná cvičení ověří funkčnost a připravenost lidí."],
+    ["Co je lessons learned?", "Vyhodnocení incidentu po jeho zvládnutí – co selhalo a jak se zlepšit, aby se neopakoval (uzavírá cyklus)."],
+    ["Jak souvisí hlášení incidentů s krizovým řízením?", "Závažné incidenty se hlásí NÚKIBu/Národnímu CERT v zákonných lhůtách (24/72 h dle režimu) a vedou se o nich záznamy a důkazy."],
+    ["Co je kontinuita dodavatelského řetězce?", "Zajištění, že výpadek dodavatele neohrozí činnost organizace – zálohní dodavatelé, smluvní záruky dostupnosti."],
+    ["Co je krizová komunikace?", "Plánovaná komunikace s veřejností, zákazníky a úřady během krize – jasná, včasná a koordinovaná, aby se omezila panika a reputační škoda."],
+    ["Jaký je vztah BCDR a řízení rizik?", "Řízení rizik identifikuje hrozby; BCDR připravuje organizaci na situaci, kdy se riziko naplní (zajištění kontinuity a obnovy)."],
+    ["Proč je off-site záloha důležitá?", "Aby přežila i lokální katastrofu (požár, povodeň, ransomware šifrující i lokální zálohy). Záloha v téže budově nestačí."],
+  ]},
+  { t: "23. Penetrační testy", cards: [
+    ["Co je penetrační test?", "Řízený a autorizovaný simulovaný útok na systém s cílem najít a ověřit zranitelnosti dříve, než je zneužije skutečný útočník."],
+    ["Jaký je rozdíl mezi pentestem a vulnerability scanem?", "Scan je automatický a hledá známé zranitelnosti (povrchní, široký). Pentest kombinuje nástroje a manuální práci a ověří, zda zranitelnosti lze skutečně zneužít (hluboký)."],
+    ["Co je black box test?", "Tester nemá žádné informace o systému – simuluje externího útočníka."],
+    ["Co je white box test?", "Tester má plné informace (zdrojový kód, schémata, přístupy) – nejdůkladnější analýza."],
+    ["Co je grey box test?", "Tester má částečné informace (např. běžný uživatelský účet) – kompromis mezi black a white box."],
+    ["Jaké jsou fáze penetračního testu?", "1) Plánování a dohoda (scope, povolení), 2) sběr informací (reconnaissance), 3) skenování a mapování, 4) získání přístupu (exploitation), 5) postexploitace, 6) reportování."],
+    ["Co je reconnaissance (sběr informací)?", "Průzkum cíle – pasivní (veřejné zdroje, OSINT) i aktivní (skenování). Cílem je shromáždit co nejvíce informací o cíli."],
+    ["Co je exploitation (získání přístupu)?", "Skutečné zneužití nalezené zranitelnosti k získání přístupu do systému."],
+    ["Co je postexploitace?", "Činnost po průniku – eskalace oprávnění, pohyb po síti (lateral movement), získání dalších dat. Ukazuje reálný dopad."],
+    ["Co obsahuje report z pentestu?", "Nalezené zranitelnosti, jejich závažnost, způsob zneužití (důkaz) a konkrétní doporučení k nápravě."],
+    ["Za jakých podmínek je pentest legální?", "Pouze s písemným souhlasem (povolením) vlastníka systému a vymezeným rozsahem. Bez souhlasu jde o trestný čin (§ 230 TZ)."],
+    ["Co je scope (rozsah) pentestu?", "Přesné vymezení, které systémy, adresy a techniky jsou povolené. Chrání obě strany a definuje hranice testu."],
+    ["Jmenuj nástroje pro pentest.", "Nmap (skenování sítě), Metasploit (exploity), Burp Suite (web), Wireshark (analýza provozu), John the Ripper (lámání hesel)."],
+    ["Co je Kali Linux?", "Linuxová distribuce vybavená nástroji pro penetrační testování a bezpečnostní analýzu."],
+    ["Co je Nmap?", "Nástroj pro skenování sítě – mapuje hosty, otevřené porty a běžící služby."],
+    ["Co je Metasploit?", "Framework pro vývoj a spouštění exploitů – ověření zneužitelnosti zranitelností."],
+    ["Co je OWASP Top 10?", "Seznam nejčastějších a nejzávažnějších zranitelností webových aplikací (injection, broken access control, XSS aj.)."],
+    ["Jaké jsou metodiky pentestu?", "OWASP (web), PTES (Penetration Testing Execution Standard), OSSTMM."],
+    ["Jaký je rozdíl mezi white hat a black hat hackerem?", "White hat = etický hacker pracující legálně. Black hat = útočník jednající nelegálně se zlým úmyslem. Grey hat se pohybuje na hraně."],
+    ["Co je etický hacking?", "Legální testování bezpečnosti s povolením vlastníka, jehož cílem je najít a opravit slabiny dříve než útočník."],
+    ["Co je bug bounty?", "Program, v němž organizace odměňuje nálezce za nahlášení zranitelností místo jejich zneužití."],
+    ["Co je red team a blue team?", "Red team = útočící tým (simuluje reálný útok). Blue team = obranný tým (detekuje a brání). Purple team kombinuje obojí."],
+    ["Co je social engineering test?", "Součást pentestu testující lidi – např. simulovaný phishing nebo pokus o fyzický vstup, k ověření bezpečnostního povědomí."],
+    ["Jak často se mají pentesty provádět?", "Pravidelně (např. ročně) a vždy po významné změně systému. U regulovaných subjektů to může vyžadovat zákon/norma."],
+    ["Proč pentest nestačí provést jednou?", "Protože systémy a hrozby se neustále mění – nové zranitelnosti a změny v infrastruktuře vyžadují opakované testování."],
+  ]},
+  { t: "24. Oborová KB", cards: [
+    ["Co je oborová (sektorová) kybernetická bezpečnost?", "Přístup ke KB zohledňující specifické hrozby, předpisy a požadavky jednotlivých odvětví. Každý sektor má jiná kritická aktiva a dopady."],
+    ["Proč se KB liší podle oborů?", "Liší se kritická aktiva (data pacientů × peníze × energetická síť), regulace a dopady incidentů (ohrožení života × finanční ztráta × výpadek služby)."],
+    ["Jaká jsou specifika KB ve zdravotnictví?", "Citlivá data pacientů (zvláštní kategorie GDPR), zdravotnické přístroje a systémy. Ransomware může přímo ohrozit životy."],
+    ["Jaká jsou specifika KB v bankovnictví a financích?", "Ochrana peněz a transakcí, podvody a phishing. Regulace DORA, dohled ČNB, směrnice PSD2."],
+    ["Co je DORA?", "Nařízení EU o digitální provozní odolnosti finančního sektoru – požadavky na odolnost bank a institucí vůči ICT rizikům a incidentům."],
+    ["Jaká jsou specifika KB v energetice?", "Ochrana rozvodných sítí a řídicích systémů (SCADA/ICS). Výpadek ohrožuje dodávky energie celé společnosti. Patří do kritické infrastruktury."],
+    ["Jaká jsou specifika KB ve veřejné správě?", "Ochrana osobních údajů občanů a registrů. Spadá pod nZKB (významné systémy) a zákon o elektronických úkonech."],
+    ["Jaká jsou specifika KB v dopravě?", "Ochrana řídicích a signalizačních systémů. Výpadek ohrožuje bezpečnost provozu. Regulováno NIS2/nZKB."],
+    ["Jaká jsou specifika KB v telekomunikacích?", "Zajištění dostupnosti sítí a spojení. Dohled ČTÚ, regulace NIS2. Výpadek zasáhne mnoho dalších služeb."],
+    ["Co je kritická informační infrastruktura (KII/KI)?", "Nejdůležitější systémy a sítě státu, jejichž narušení by mělo závažný dopad na bezpečnost, ekonomiku nebo fungování společnosti."],
+    ["Která odvětví patří do kritické infrastruktury?", "Energetika, vodárenství, zdravotnictví, doprava, finance, komunikace, veřejná správa a další (celkem 15 resp. 22 odvětví dle nZKB)."],
+    ["Jaké povinnosti mají subjekty kritické infrastruktury?", "Nejpřísnější povinnosti – řízení rizik, audity, bezpečnost dodavatelského řetězce, hlášení incidentů, zajištění dostupnosti služby."],
+    ["Jak NIS2 mění okruh regulovaných subjektů?", "Výrazně ho rozšiřuje. Zavádí kategorie „základní“ (essential) a „důležité“ (important) subjekty s odstupňovanými povinnostmi a odpovědností vedení."],
+    ["Co je strategicky významná služba?", "Zvláštní kategorie regulovaných služeb dle nZKB, jejichž narušení může ohrozit bezpečnost státu nebo veřejný pořádek; určuje je nařízení vlády."],
+    ["Proč mají kritická odvětví přísnější regulaci?", "Protože dopad jejich narušení je nejzávažnější – může ohrozit ekonomiku, základní potřeby obyvatel i lidské životy."],
+    ["Co je PSD2?", "Evropská směrnice o platebních službách – mj. zavádí silné ověření klienta (SCA) a otevřené bankovnictví, zvyšuje bezpečnost plateb."],
+    ["Jak souvisí bezpečnost dodavatelského řetězce s oborovou KB?", "Útok přes dodavatele může zasáhnout celé odvětví. Regulované subjekty musí prověřovat a evidovat významné dodavatele (nZKB)."],
+    ["Co je sektorový CERT/CSIRT?", "Tým pro řešení incidentů zaměřený na konkrétní odvětví (např. finanční sektor), který sdílí hrozby a koordinuje obranu v rámci oboru."],
+    ["Proč je sdílení informací o hrozbách mezi obory důležité?", "Útočníci používají podobné techniky napříč obory. Sdílení (threat intelligence) umožňuje rychlejší obranu a varování."],
+    ["Jak souvisí oborová KB se zdravotnickými přístroji (IoMT)?", "Zdravotnické přístroje připojené k síti (Internet of Medical Things) jsou zranitelné; jejich kompromitace může ohrozit pacienty."],
+    ["Co je regulovaná služba v energetice?", "Služba zásadní pro dodávky energie (výroba, přenos, distribuce), kterou NÚKIB určí jako regulovanou s povinnostmi dle nZKB."],
+    ["Jaký je rozdíl mezi dopadem incidentu v IT firmě a v nemocnici?", "V IT firmě jde hlavně o data a peníze. V nemocnici může výpadek systémů přímo ohrozit zdraví a životy pacientů."],
+    ["Co je odpovědnost vedení podle NIS2?", "Vedení (management) regulovaných subjektů odpovídá za zavedení opatření KB a může být za jejich zanedbání postiženo."],
+    ["Proč je veřejná správa lákavým cílem útoků?", "Spravuje rozsáhlé osobní údaje občanů a klíčové registry; jejich únik nebo výpadek má velký dopad na společnost."],
+    ["Jak se liší vyšší a nižší režim podle odvětví?", "Velké subjekty v kritických odvětvích spadají do vyššího režimu (více povinností), střední do nižšího. Záleží na významu a velikosti."],
+  ]},
+  { t: "25. KB v ICS", cards: [
+    ["Co je ICS?", "Industrial Control Systems – průmyslové řídicí systémy ovládající fyzické procesy v továrnách, elektrárnách, vodárnách apod."],
+    ["Co je SCADA?", "Supervisory Control and Data Acquisition – systém pro dohled a sběr dat z rozlehlých průmyslových procesů (vzdálený dohled a řízení)."],
+    ["Co je PLC?", "Programmable Logic Controller – programovatelný automat, který přímo řídí konkrétní zařízení nebo proces."],
+    ["Co je DCS?", "Distributed Control System – distribuovaný řídicí systém v rámci jednoho závodu (např. chemička, rafinérie)."],
+    ["Co je HMI?", "Human-Machine Interface – rozhraní, přes které obsluha sleduje a ovládá průmyslový proces."],
+    ["Co je OT?", "Operational Technology – provozní technologie ovládající fyzické procesy. Opak klasického IT."],
+    ["Jaký je hlavní rozdíl v prioritách CIA mezi IT a OT?", "V IT je nejdůležitější důvěrnost. V OT/ICS je na prvním místě DOSTUPNOST a bezpečnost provozu – výpadek řízení může ohrozit životy."],
+    ["Proč je v OT prioritou dostupnost?", "Protože řídicí systémy musí běžet nepřetržitě – zastavení elektrárny, vodárny nebo výrobní linky má okamžité fyzické dopady."],
+    ["Jak se liší životnost zařízení IT a OT?", "IT zařízení žijí 3–5 let. OT/ICS systémy fungují 15–30 let, často jsou zastaralé (legacy) bez podpory a záplat."],
+    ["Proč je obtížné aktualizovat ICS?", "Aktualizace vyžaduje přerušení provozu, které si kritické procesy nemohou dovolit. Mnoho systémů je staré a bez podpory výrobce."],
+    ["Proč je propojení ICS s internetem rizikem?", "Dříve izolované systémy se připojují kvůli vzdálené správě a IIoT, čímž se zpřístupňují útočníkům, na což nebyly navrženy."],
+    ["Co je IIoT?", "Industrial Internet of Things – propojení průmyslových zařízení a senzorů do sítě. Zvyšuje efektivitu, ale i útočnou plochu."],
+    ["Co byl Stuxnet?", "Slavný malware, který poškodil íránské odstředivky na obohacování uranu – první „kyberzbraň“ cílená na ICS/SCADA."],
+    ["Jaké jsou specifické hrozby v ICS?", "Útoky na fyzické procesy (zastavení výroby, poškození zařízení), zneužití zastaralých systémů a útoky přes propojení s IT/internetem."],
+    ["Jaká opatření chrání ICS?", "Segmentace a izolace sítí (OT od IT), Purdue model, DMZ mezi IT a OT, pasivní monitoring anomálií, přísné řízení přístupu a fyzická bezpečnost."],
+    ["Co je Purdue model?", "Referenční model vrstvení ICS/OT sítě do úrovní (od fyzických procesů po podnikové IT) pro řízení komunikace a segmentaci."],
+    ["Proč se v ICS používá pasivní monitoring?", "Aby sledování provozu nenarušilo citlivé řídicí systémy. Aktivní skenování by mohlo způsobit výpadek procesu."],
+    ["Co je norma IEC 62443?", "Mezinárodní standard pro bezpečnost průmyslových automatizačních a řídicích systémů (ICS/OT)."],
+    ["Proč nelze v OT používat běžné IT nástroje?", "Mnoho ICS systémů je staré a křehké; běžné skeny, aktualizace nebo antivir mohou narušit jejich provoz. Vyžadují speciální, šetrný přístup."],
+    ["Co je air gap?", "Fyzické oddělení sítě od jiných sítí a internetu. Maximální izolace ICS, ale dnes stále těžší udržet kvůli potřebě dat."],
+    ["Jak segmentace chrání ICS?", "Odděluje OT síť od IT a internetu, takže útok z kancelářské sítě se nešíří do řídicích systémů a naopak."],
+    ["Jaký je dopad výpadku v ICS oproti IT?", "V IT obvykle ztráta dat nebo peněz. V ICS/OT fyzické škody, zastavení výroby, ohrožení bezpečnosti a životů."],
+    ["Co je řídicí systém kritické infrastruktury?", "ICS/SCADA řídící energetiku, vodárenství nebo dopravu – patří mezi nejcennější a nejvíce chráněná aktiva státu."],
+    ["Jak souvisí KB v ICS s nZKB a NIS2?", "Provozovatelé kritické infrastruktury s ICS jsou regulované subjekty s nejpřísnějšími povinnostmi (řízení rizik, hlášení incidentů, ochrana dodavatelů)."],
+    ["Jaká je hlavní myšlenka KB v ICS?", "V průmyslu je prioritou dostupnost a bezpečnost provozu před důvěrností. Výpadek řízení může mít fyzické a život ohrožující následky."],
+  ]},
+];
+
+
+/* === LOGIKA === */
+const state = {
+  topic: -1,          // -1 = všechna témata
+  order: 'seq',       // seq | shuffle
+  filter: 'all',      // all | todo
+  idx: 0,
+  flipped: false,
+  list: [],           // aktuální seznam karet [{topic, q, a, key}]
+  progress: {},       // key -> 'know' | 'dunno'
+};
+
+// vytvoř ploché ID pro každou kartu
+const ALL = [];
+DECK.forEach((grp, gi) => {
+  grp.cards.forEach((c, ci) => {
+    ALL.push({ topic: grp.t, gi, q: c[0], a: c[1], key: gi + '-' + ci });
+  });
+});
+
+// naplň select
+const sel = document.getElementById('topicSel');
+let opt = document.createElement('option');
+opt.value = -1; opt.textContent = 'Všechny okruhy (' + ALL.length + ' karet)';
+sel.appendChild(opt);
+DECK.forEach((g, i) => {
+  const o = document.createElement('option');
+  o.value = i; o.textContent = g.t + '  (' + g.cards.length + ')';
+  sel.appendChild(o);
+});
+
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function buildList(){
+  let pool = state.topic === -1 ? ALL.slice() : ALL.filter(c => c.gi === state.topic);
+  if(state.filter === 'todo'){
+    pool = pool.filter(c => state.progress[c.key] !== 'know');
+  }
+  if(state.order === 'shuffle') shuffle(pool);
+  state.list = pool;
+  state.idx = 0;
+  state.flipped = false;
+  render();
+}
+
+function render(){
+  const flip = document.getElementById('flip');
+  if(state.list.length === 0){
+    document.getElementById('qText').textContent = 'Žádné karty k zobrazení 🎉';
+    document.getElementById('aText').textContent = 'Zkus změnit filtr nebo okruh.';
+    document.getElementById('fTopic').textContent = '';
+    document.getElementById('bTopic').textContent = '';
+    document.getElementById('counter').textContent = '0 / 0';
+    flip.classList.remove('flipped');
+    updateStats(); updateRate();
+    return;
+  }
+  if(state.idx >= state.list.length) state.idx = state.list.length - 1;
+  const card = state.list[state.idx];
+  document.getElementById('qText').textContent = card.q;
+  document.getElementById('aText').textContent = card.a;
+  document.getElementById('fTopic').textContent = card.topic;
+  document.getElementById('bTopic').textContent = card.topic;
+  document.getElementById('counter').textContent = (state.idx+1) + ' / ' + state.list.length;
+  flip.classList.toggle('flipped', state.flipped);
+  updateStats(); updateRate();
+}
+
+function updateStats(){
+  let know=0, dunno=0;
+  // počítáme v rámci aktuálního poolu tématu (bez filtru todo) – referenční je výběr okruhu
+  const ref = state.topic === -1 ? ALL : ALL.filter(c => c.gi === state.topic);
+  ref.forEach(c => {
+    if(state.progress[c.key]==='know') know++;
+    else if(state.progress[c.key]==='dunno') dunno++;
+  });
+  const total = ref.length;
+  const newc = total - know - dunno;
+  document.getElementById('cntKnow').textContent = know;
+  document.getElementById('cntDunno').textContent = dunno;
+  document.getElementById('cntNew').textContent = newc;
+  document.getElementById('barFill').style.width = total ? (know/total*100)+'%' : '0%';
+}
+
+function updateRate(){
+  const k = document.getElementById('rateKnow');
+  const d = document.getElementById('rateDunno');
+  k.classList.remove('on'); d.classList.remove('on');
+  if(state.list.length===0) return;
+  const card = state.list[state.idx];
+  const p = state.progress[card.key];
+  if(p==='know') k.classList.add('on');
+  if(p==='dunno') d.classList.add('on');
+}
+
+function flipCard(){ state.flipped = !state.flipped; document.getElementById('flip').classList.toggle('flipped', state.flipped); }
+function next(){ if(state.idx < state.list.length-1){ state.idx++; state.flipped=false; render(); } }
+function prev(){ if(state.idx > 0){ state.idx--; state.flipped=false; render(); } }
+function rate(val){
+  if(state.list.length===0) return;
+  const card = state.list[state.idx];
+  // přepnutí: druhý klik na stejné hodnocení ho zruší
+  state.progress[card.key] = (state.progress[card.key]===val) ? undefined : val;
+  if(state.progress[card.key]===undefined) delete state.progress[card.key];
+  updateRate(); updateStats();
+  // po ohodnocení automaticky další (jen když nastaveno)
+  if(state.progress[card.key]){ setTimeout(next, 180); }
+}
+
+/* === Eventy === */
+document.getElementById('flip').addEventListener('click', flipCard);
+document.getElementById('nextBtn').addEventListener('click', next);
+document.getElementById('prevBtn').addEventListener('click', prev);
+document.getElementById('rateKnow').addEventListener('click', e=>{e.stopPropagation(); rate('know');});
+document.getElementById('rateDunno').addEventListener('click', e=>{e.stopPropagation(); rate('dunno');});
+
+sel.addEventListener('change', e=>{ state.topic = parseInt(e.target.value,10); buildList(); });
+
+document.getElementById('orderSeq').addEventListener('click', ()=>{ state.order='seq'; setActive('orderSeq','orderShuf'); buildList(); });
+document.getElementById('orderShuf').addEventListener('click', ()=>{ state.order='shuffle'; setActive('orderShuf','orderSeq'); buildList(); });
+
+document.getElementById('filterAll').addEventListener('click', ()=>{ state.filter='all'; setActive('filterAll','filterTodo'); buildList(); });
+document.getElementById('filterTodo').addEventListener('click', ()=>{ state.filter='todo'; setActive('filterTodo','filterAll'); buildList(); });
+
+document.getElementById('resetProg').addEventListener('click', ()=>{
+  if(confirm('Opravdu vynulovat veškerý pokrok (umím/neumím)?')){ state.progress={}; render(); }
+});
+
+function setActive(onId, ...offIds){
+  document.getElementById(onId).classList.add('active');
+  offIds.forEach(id=>document.getElementById(id).classList.remove('active'));
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'){ next(); }
+  else if(e.key==='ArrowLeft'){ prev(); }
+  else if(e.key===' '){ e.preventDefault(); flipCard(); }
+  else if(e.key==='1'){ rate('dunno'); }
+  else if(e.key==='2'){ rate('know'); }
+});
+
+// init – filtrační tlačítka mají výchozí "Vše" aktivní
+document.getElementById('filterAll').classList.add('active');
+buildList();
+</script>
+</body>
+</html>
