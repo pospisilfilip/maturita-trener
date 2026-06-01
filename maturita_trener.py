@@ -1,5 +1,6 @@
 import streamlit as st
 import random
+import re
 
 # Kompletní databáze 20 literárních děl pro maturitu z českého jazyka
 WORKS = [
@@ -508,50 +509,425 @@ Nebo jestli to slyšet chtěl.[cite: 5]""",
     }
 ]
 
-st.set_page_config(page_title="Maturitní Trenér - Kompletní[cite: 5]", layout="wide")
+CITE_PATTERN = re.compile(r"\[cite:\s*\d+\]")
+
+
+def clean_text(value: str) -> str:
+    return CITE_PATTERN.sub("", value).strip()
+
+
+def movement_key(movement: str) -> str:
+    return movement.split("·")[0].strip()
+
+
+ACHIEVEMENTS = [
+    ("První bod", "Získej první body.", lambda s: s["score"] >= 10),
+    ("Sběratel bodů", "Nasbírej 100 bodů.", lambda s: s["score"] >= 100),
+    ("Rozjetá série", "Udrž sérii 3 správných odpovědí.", lambda s: s["best_streak"] >= 3),
+    ("Maturitní mašina", "Udrž sérii 5 správných odpovědí.", lambda s: s["best_streak"] >= 5),
+    ("Tréninkový dříč", "Odpověz alespoň 10 otázek.", lambda s: s["total_answered"] >= 10),
+]
+
+
+def init_game_state() -> None:
+    defaults = {
+        "score": 0,
+        "xp": 0,
+        "streak": 0,
+        "best_streak": 0,
+        "total_answered": 0,
+        "correct_answers": 0,
+        "unlocked_achievements": [],
+        "last_unlocks": [],
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def player_level(xp: int) -> int:
+    return xp // 100 + 1
+
+
+def points_to_next_level(xp: int) -> int:
+    return 100 - (xp % 100)
+
+
+def unlock_new_achievements() -> list[str]:
+    unlocked = []
+    current = set(st.session_state["unlocked_achievements"])
+    snapshot = {
+        "score": st.session_state["score"],
+        "best_streak": st.session_state["best_streak"],
+        "total_answered": st.session_state["total_answered"],
+    }
+    for name, _, condition in ACHIEVEMENTS:
+        if name not in current and condition(snapshot):
+            current.add(name)
+            unlocked.append(name)
+    st.session_state["unlocked_achievements"] = sorted(current)
+    st.session_state["last_unlocks"] = unlocked
+    return unlocked
+
+
+def reward_result(correct: bool, base_points: int = 20, base_xp: int = 25) -> list[str]:
+    st.session_state["total_answered"] += 1
+    if correct:
+        st.session_state["correct_answers"] += 1
+        st.session_state["streak"] += 1
+        streak_bonus = min(st.session_state["streak"] * 2, 20)
+        st.session_state["score"] += base_points + streak_bonus
+        st.session_state["xp"] += base_xp + streak_bonus
+    else:
+        st.session_state["streak"] = 0
+        st.session_state["score"] = max(0, st.session_state["score"] - 5)
+        st.session_state["xp"] += 5
+
+    st.session_state["best_streak"] = max(
+        st.session_state["best_streak"], st.session_state["streak"]
+    )
+    return unlock_new_achievements()
+
+
+AUTHOR_DATABASE = {
+    "Molière": {
+        "bio": "Francouzský dramatik klasicismu, mistr komedie mravů. Vystavěl satirické postavy posedlé jednou vášní (lakota, pokrytectví, snobství).",
+        "other_works": ["Tartuffe", "Zdravý nemocný", "Měšťák šlechticem"],
+    },
+    "C. Goldoni": {
+        "bio": "Italský reformátor komedie. Nahradil improvizaci přesně napsaným dialogem a psychologičtější kresbou postav.",
+        "other_works": ["Poprask na laguně", "Mirandolina", "Lhář"],
+    },
+    "K. J. Erben": {
+        "bio": "Sbíral lidovou slovesnost a přetavil ji do balad s důrazem na osudovost, vinu a trest.",
+        "other_works": ["Prostonárodní české písně a říkadla", "Písně národní v Čechách", "Pohádky"],
+    },
+    "K. H. Borovský": {
+        "bio": "Novinář a satirik kritizující absolutismus i církevní moc. Pracoval s ironií, alegorií a politickou nadsázkou.",
+        "other_works": ["Tyrolské elegie", "Křest svatého Vladimíra", "Epištoly kutnohorské"],
+    },
+    "R. L. Stevenson": {
+        "bio": "Skotský prozaik, který spojoval dobrodružný příběh s psychologickou a morální problematikou.",
+        "other_works": ["Ostrov pokladů", "Černý šíp", "Unesen"],
+    },
+    "A. de Saint-Exupéry": {
+        "bio": "Pilot a humanistický autor propojující filosofické otázky s poetickým vyprávěním.",
+        "other_works": ["Noční let", "Země lidí", "Válečný pilot"],
+    },
+    "E. Hemingway": {
+        "bio": "Zástupce ztracené generace; úsporný styl, silné podtexty a hrdinové testovaní tlakem situace.",
+        "other_works": ["Sbohem, armádo", "Komu zvoní hrana", "Fiesta"],
+    },
+    "G. Orwell": {
+        "bio": "Anglický prozaik a esejista, který demaskoval mechanismy totality, propagandy a manipulace jazykem.",
+        "other_works": ["Hold Katalánsku", "Nad vodou a pod vodou v Paříži a Londýně", "Barmské dny"],
+    },
+    "R. Bradbury": {
+        "bio": "Americký autor poetické science fiction; varoval před kulturní pasivitou, cenzurou a technologickým odcizením.",
+        "other_works": ["Pampeliškové víno", "Kaleidoskop", "Ikarův pád"],
+    },
+    "Christiane F.": {
+        "bio": "Autobiograficky založená výpověď o drogové závislosti dospívajících v západním Berlíně.",
+        "other_works": ["Christiane F. – Můj druhý život"],
+    },
+    "S. King": {
+        "bio": "Americký prozaik, který kombinuje horor s psychologickým realismem a kritikou sociálního násilí.",
+        "other_works": ["Osvícení", "To", "Misery"],
+    },
+    "F. Gellner": {
+        "bio": "Básník anarchistických buřičů; civilní lyrika, ironie, vzdor a motiv pomíjivosti.",
+        "other_works": ["Radosti života", "Nové verše", "Cesty do hor"],
+    },
+    "K. Poláček": {
+        "bio": "Humorista a fejetonista s mimořádným citem pro jazyk postav a atmosféru maloměsta.",
+        "other_works": ["Muži v offsidu", "Hostinec U kamenného stolu", "Okresní město"],
+    },
+    "Z. Jirotka": {
+        "bio": "Autor jemného situačního humoru a inteligentní jazykové komiky inspirované anglickou tradicí.",
+        "other_works": ["Muž se psem", "Saturnin se vrací", "Pravidla společenského chování"],
+    },
+    "B. Hrabal": {
+        "bio": "Klíčový český prozaik 2. poloviny 20. století; poetika pábení a směs tragiky s groteskou.",
+        "other_works": ["Obsluhoval jsem anglického krále", "Postřižiny", "Příliš hlučná samota"],
+    },
+    "V. Havel": {
+        "bio": "Dramatik absurdního divadla a disident. Sleduje jazykovou manipulaci moci a rozpad osobní odpovědnosti.",
+        "other_works": ["Vernisáž", "Zahradní slavnost", "Odcházení"],
+    },
+    "Svěrák & Smoljak": {
+        "bio": "Autorská dvojice Divadla Járy Cimrmana; pracuje s mystifikací, parodií vědeckého diskurzu a absurditou byrokracie.",
+        "other_works": ["Akt", "Dobytí severního pólu", "Hospoda Na mýtince"],
+    },
+    "P. Šabach": {
+        "bio": "Prozaik zachycující normalizaci skrze civilní humor, rodinné vztahy a generační střety.",
+        "other_works": ["Babičky", "Občanský průkaz", "Šakalí léta"],
+    },
+}
+
+
+MOVEMENT_DATABASE = {
+    "Klasicismus": "Důraz na rozum, řád, typizované postavy a společenskou satiru. Časté jsou žánrově čisté komedie a tragédie.",
+    "Osvícenství / Klasicismus": "Víra v rozum, výchovná funkce literatury a kritika neřestí prostřednictvím komediální situace.",
+    "Národní obrození / Romantismus": "Obnova národní kultury, zájem o folklor, historická témata a osudové konflikty.",
+    "Realismus (počátky)": "Směřování k věcnosti, kritice společenských poměrů a satirickému odhalování moci.",
+    "Novoromantismus / Dekadence": "Krize identity, fascinace temnými stránkami osobnosti, střet civilizované masky a pudovosti.",
+    "Humanistická literatura": "Etické otázky, mezilidské vztahy, odpovědnost a smysl života vyjádřené srozumitelnou symbolikou.",
+    "Ztracená generace": "Válečná zkušenost, deziluze, osamělý hrdina a úsporný styl s důrazem na podtext.",
+    "Světová literatura": "Široce sdílená témata 20. století: moc, propaganda, ideologie, rozklad hodnot.",
+    "Dystopická literatura": "Model totalitní budoucnosti, sledování, kontrola jazyka a likvidace individuality.",
+    "Science Fiction": "Fikční budoucnost jako nástroj kritiky současnosti, techniky, médií a společenských mechanismů.",
+    "Dokumentární literatura": "Autentické svědectví, civilní jazyk, důraz na sociální realitu bez idealizace.",
+    "Postmoderní literatura": "Míchání žánrů, práce s popkulturními motivy a otevřená kompozice.",
+    "Anarchičtí buřiči": "Programový vzdor vůči měšťácké morálce, bohémský životní styl, ironie a provokace.",
+    "Meziválečná česká literatura": "Kombinace humoru a kritického pohledu na společnost, jazyková stylizace vypravěče.",
+    "Česká literatura / Protektorát": "Únik k humoru a civilnímu příběhu jako protiúzkostná reakce na okupaci.",
+    "Poválečná česká literatura": "Prolnutí všednosti a historického traumatu, tragikomika a vyprávění z periferie.",
+    "Samizdatová literatura": "Neoficiální oběh textů, absurdní dramatika a střet jednotlivce s institucí moci.",
+    "Česká divadelní literatura": "Autorská mystifikace, parodie odborného jazyka a satira byrokratického systému.",
+    "Současná česká literatura / Normalizace": "Paměť pozdního socialismu, rodinné perspektivy a ironická civilnost.",
+}
+
+
+ENRICHED_WORKS = []
+for work in WORKS:
+    author_clean = clean_text(work["author"])
+    movement_clean = clean_text(work["movement"])
+    cleaned = {
+        **work,
+        "authorClean": author_clean,
+        "titleClean": clean_text(work["title"]),
+        "movementClean": movement_clean,
+        "movementKey": movement_key(movement_clean),
+        "authorInfoClean": clean_text(work["authorInfo"]),
+        "plotClean": clean_text(work["plot"]),
+        "excerptClean": clean_text(work["excerpt"]),
+        "contextClean": clean_text(work["context"]),
+    }
+    ENRICHED_WORKS.append(cleaned)
+
+AUTHOR_LIST = sorted({w["authorClean"] for w in ENRICHED_WORKS})
+MOVEMENT_LIST = sorted({w["movementKey"] for w in ENRICHED_WORKS})
+
+st.set_page_config(page_title="Maturitní trenér", layout="wide")
 st.sidebar.title("📚 Navigace")
-mode = st.sidebar.radio("Zvolte režim aplikace:", ["Databáze děl a analýz", "Interaktivní trénink úryvků"])
+mode = st.sidebar.radio(
+    "Zvolte režim aplikace:",
+    ["Databáze děl", "Profily autorů", "Interaktivní trénink"],
+)
 
-if mode == "Databáze děl a analýz":
-    st.header("📖 Detailní narativní rozbory a autoři (kompletní 1-20)")
-    work_titles = [f"{w['id']}. {w['title']} ({w['author']})" for w in WORKS]
-    selected = st.selectbox("Vyber si literární dílo:", work_titles)
+if mode == "Databáze děl":
+    st.header("📖 Databáze literárních děl k maturitě")
+    query = st.text_input("Hledat podle názvu, autora, děje nebo kontextu")
+    selected_authors = st.multiselect("Filtr autora", AUTHOR_LIST)
+    selected_movements = st.multiselect("Filtr literárního směru", MOVEMENT_LIST)
 
-    for w in WORKS:
-        if selected.startswith(str(w['id']) + "."):
-            st.subheader(w['title'])
-            st.write(f"**Autor:** {w['author']} | **Směr:** {w['movement']}")
-            st.markdown("### 🧑‍🏫 Profil autora")
-            st.write(w['authorInfo'])
-            st.markdown("### 📜 Děj a rozbor")
-            st.write(w['plot'])
-            st.markdown("### 📖 Dlouhý úryvek pro kontext")
-            st.info(w['excerpt'])
-            st.success(f"**Jak zasadit do kontextu:** {w['context']}")
+    filtered_works = []
+    for work in ENRICHED_WORKS:
+        if selected_authors and work["authorClean"] not in selected_authors:
+            continue
+        if selected_movements and work["movementKey"] not in selected_movements:
+            continue
+        haystack = " ".join(
+            [work["titleClean"], work["authorClean"], work["plotClean"], work["contextClean"]]
+        ).lower()
+        if query and query.lower() not in haystack:
+            continue
+        filtered_works.append(work)
 
-elif mode == "Interaktivní trénink úryvků":
-    st.header("🎯 Poznávačka úryvků k maturitě")
-    if 'current_q' not in st.session_state:
-        st.session_state.current_q = random.choice(WORKS)
+    col1, col2 = st.columns(2)
+    col1.metric("Počet děl v databázi", len(ENRICHED_WORKS))
+    col2.metric("Počet děl po filtraci", len(filtered_works))
 
-    w = st.session_state.current_q
-    st.info(f"„{w['excerpt']}“")
+    if not filtered_works:
+        st.warning("Žádné dílo neodpovídá zadaným filtrům.")
+    else:
+        labels = [f"{w['id']}. {w['titleClean']} — {w['authorClean']}" for w in filtered_works]
+        selected_label = st.selectbox("Vyber dílo", labels)
+        selected_work = next(
+            w for w in filtered_works if selected_label.startswith(f"{w['id']}.")
+        )
 
-    options = [w['title']]
-    while len(options) < min(4, len(WORKS)):
-        other = random.choice(WORKS)['title']
-        if other not in options:
-            options.append(other)
-    random.shuffle(options)
+        st.subheader(selected_work["titleClean"])
+        st.write(
+            f"**Autor:** {selected_work['authorClean']}  \n"
+            f"**Literární směr:** {selected_work['movementClean']}"
+        )
 
-    guess = st.radio("Ze kterého díla je tento úryvek?", options)
+        tab_plot, tab_excerpt, tab_author, tab_movement = st.tabs(
+            ["Děj díla", "Úryvek + kontext", "Autor", "Směr"]
+        )
 
-    if st.button("Zkontrolovat"):
-        if guess == w['title']:
-            st.success("✅ Správně!")
+        with tab_plot:
+            st.markdown("### Podrobný děj")
+            st.write(selected_work["plotClean"])
+            with st.expander("Rychlý tahák k zasazení úryvku"):
+                st.success(selected_work["contextClean"])
+
+        with tab_excerpt:
+            st.markdown("### Dlouhý úryvek")
+            st.info(selected_work["excerptClean"])
+            st.markdown("### Jak úryvek zasadit do děje")
+            st.write(selected_work["contextClean"])
+
+        with tab_author:
+            author_detail = AUTHOR_DATABASE.get(
+                selected_work["authorClean"],
+                {"bio": selected_work["authorInfoClean"], "other_works": []},
+            )
+            st.markdown("### Profil autora")
+            st.write(author_detail["bio"])
+            st.markdown("### Další díla autora")
+            if author_detail["other_works"]:
+                for item in author_detail["other_works"]:
+                    st.write(f"- {item}")
+            else:
+                st.write("Další díla zatím nejsou doplněna.")
+
+        with tab_movement:
+            st.markdown("### Kontext literárního směru")
+            st.write(
+                MOVEMENT_DATABASE.get(
+                    selected_work["movementKey"],
+                    "Kontext směru zatím není doplněn.",
+                )
+            )
+
+elif mode == "Profily autorů":
+    st.header("🧑‍🏫 Profily autorů a jejich díla")
+    selected_author = st.selectbox("Vyber autora", AUTHOR_LIST)
+    works_by_author = [w for w in ENRICHED_WORKS if w["authorClean"] == selected_author]
+    author_detail = AUTHOR_DATABASE.get(
+        selected_author, {"bio": works_by_author[0]["authorInfoClean"], "other_works": []}
+    )
+
+    st.markdown("### Bio a význam")
+    st.write(author_detail["bio"])
+    st.markdown("### Díla v této databázi")
+    for work in works_by_author:
+        st.write(f"- {work['titleClean']} ({work['movementClean']})")
+    st.markdown("### Další důležitá díla")
+    if author_detail["other_works"]:
+        for item in author_detail["other_works"]:
+            st.write(f"- {item}")
+    else:
+        st.write("Další díla zatím nejsou doplněna.")
+
+else:
+    st.header("🎯 Interaktivní trénink k maturitě")
+    init_game_state()
+
+    level = player_level(st.session_state["xp"])
+    accuracy = (
+        st.session_state["correct_answers"] / st.session_state["total_answered"]
+        if st.session_state["total_answered"]
+        else 0.0
+    )
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Skóre", st.session_state["score"])
+    m2.metric("Level", level)
+    m3.metric("Série", st.session_state["streak"])
+    m4.metric("Úspěšnost", f"{accuracy * 100:.0f}%")
+
+    st.progress((st.session_state["xp"] % 100) / 100)
+    st.caption(f"Do dalšího levelu zbývá {points_to_next_level(st.session_state['xp'])} XP.")
+
+    if st.session_state["total_answered"] >= 5 and accuracy >= 0.6:
+        st.success("🔥 Denní challenge splněna: 5+ odpovědí a alespoň 60 % úspěšnost.")
+
+    with st.expander("🏅 Úspěchy"):
+        if st.session_state["unlocked_achievements"]:
+            for name, description, _ in ACHIEVEMENTS:
+                if name in st.session_state["unlocked_achievements"]:
+                    st.write(f"✅ **{name}** — {description}")
         else:
-            st.error(f"❌ Chyba. Správná odpověď zní: {w['title']}.")
-        
-        if st.button("Načíst další úryvek"):
-            st.session_state.current_q = random.choice(WORKS)
-            st.rerun()
+            st.write("Zatím žádné odemčené úspěchy.")
+
+    quiz_mode = st.radio(
+        "Typ tréninku",
+        ["Poznej dílo podle úryvku", "Zasaď úryvek do děje", "Poznej autora podle díla"],
+    )
+
+    if "current_q" not in st.session_state:
+        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+
+    current = st.session_state.current_q
+    st.info(current["excerptClean"])
+
+    if quiz_mode == "Poznej dílo podle úryvku":
+        options = [current["titleClean"]]
+        while len(options) < min(4, len(ENRICHED_WORKS)):
+            candidate = random.choice(ENRICHED_WORKS)["titleClean"]
+            if candidate not in options:
+                options.append(candidate)
+        random.shuffle(options)
+
+        guess = st.radio("Ze kterého díla je úryvek?", options)
+        if st.button("Zkontrolovat odpověď", key="check_work"):
+            if guess == current["titleClean"]:
+                unlocks = reward_result(True)
+                st.success("✅ Správně.")
+            else:
+                unlocks = reward_result(False)
+                st.error(f"❌ Správně je: {current['titleClean']}.")
+            st.write(f"**Kontext:** {current['contextClean']}")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+    elif quiz_mode == "Zasaď úryvek do děje":
+        st.write("Napiš stručně, co se děje před/po úryvku a proč je důležitý.")
+        _ = st.text_area("Tvá odpověď")
+        if st.button("Porovnat s databází", key="check_context"):
+            st.session_state["total_answered"] += 1
+            st.session_state["score"] += 8
+            st.session_state["xp"] += 12
+            unlocks = unlock_new_achievements()
+            st.success(f"Referenční kontext: {current['contextClean']}")
+            st.write(f"Rozšířený děj: {current['plotClean']}")
+            st.info("✅ Aktivní trénink odměněn: +8 bodů, +12 XP.")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+    else:
+        options = [current["authorClean"]]
+        while len(options) < min(4, len(AUTHOR_LIST)):
+            candidate = random.choice(AUTHOR_LIST)
+            if candidate not in options:
+                options.append(candidate)
+        random.shuffle(options)
+
+        guess = st.radio(
+            f"Kdo je autorem díla '{current['titleClean']}'?",
+            options,
+        )
+        if st.button("Zkontrolovat autora", key="check_author"):
+            if guess == current["authorClean"]:
+                unlocks = reward_result(True, base_points=15, base_xp=20)
+                st.success("✅ Správně.")
+            else:
+                unlocks = reward_result(False, base_points=15, base_xp=20)
+                st.error(f"❌ Správně je: {current['authorClean']}.")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+    if st.button("Načíst další otázku"):
+        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+        st.rerun()
+
+    if st.button("Resetovat progres"):
+        for key in [
+            "score",
+            "xp",
+            "streak",
+            "best_streak",
+            "total_answered",
+            "correct_answers",
+            "unlocked_achievements",
+            "last_unlocks",
+        ]:
+            del st.session_state[key]
+        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+        st.rerun()
