@@ -1,6 +1,9 @@
 import streamlit as st
 import random
 import re
+from pathlib import Path
+import zipfile
+import xml.etree.ElementTree as ET
 
 # Kompletní databáze 20 literárních děl pro maturitu z českého jazyka
 WORKS = [
@@ -707,13 +710,73 @@ for work in WORKS:
 
 AUTHOR_LIST = sorted({w["authorClean"] for w in ENRICHED_WORKS})
 MOVEMENT_LIST = sorted({w["movementKey"] for w in ENRICHED_WORKS})
+REPO_ROOT = Path(__file__).resolve().parent
+MATERIALS_ROOT = REPO_ROOT / "data"
+SUPPORTED_SUFFIXES = {".docx", ".pdf", ".html"}
+
+
+def collect_material_files() -> list[Path]:
+    if not MATERIALS_ROOT.exists():
+        return []
+    return sorted(
+        [
+            path
+            for path in MATERIALS_ROOT.rglob("*")
+            if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES
+        ]
+    )
+
+
+def build_material_categories(paths: list[Path]) -> dict[str, list[Path]]:
+    grouped = {"DOCX": [], "PDF": [], "HTML": []}
+    for path in paths:
+        suffix = path.suffix.lower()
+        if suffix == ".docx":
+            grouped["DOCX"].append(path)
+        elif suffix == ".pdf":
+            grouped["PDF"].append(path)
+        elif suffix == ".html":
+            grouped["HTML"].append(path)
+    return grouped
+
+
+def read_docx_preview(file_path: Path, max_chars: int = 1500) -> str:
+    try:
+        with zipfile.ZipFile(file_path, "r") as archive:
+            xml_data = archive.read("word/document.xml")
+        root = ET.fromstring(xml_data)
+        text_nodes = root.findall(".//{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t")
+        text = " ".join(node.text for node in text_nodes if node.text)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:max_chars] + ("…" if len(text) > max_chars else "")
+    except Exception:
+        return "Náhled se nepodařilo načíst."
+
+
+def read_html_preview(file_path: Path, max_chars: int = 1500) -> str:
+    try:
+        raw = file_path.read_text(encoding="utf-8", errors="ignore")
+        text = re.sub(r"<[^>]+>", " ", raw)
+        text = re.sub(r"\s+", " ", text).strip()
+        return text[:max_chars] + ("…" if len(text) > max_chars else "")
+    except Exception:
+        return "Náhled se nepodařilo načíst."
+
+
+MATERIAL_FILES = collect_material_files()
+MATERIAL_CATEGORIES = build_material_categories(MATERIAL_FILES)
 
 st.set_page_config(page_title="Maturitní trenér", layout="wide")
 st.sidebar.title("📚 Navigace")
 mode = st.sidebar.radio(
     "Zvolte režim aplikace:",
-    ["Databáze děl", "Profily autorů", "Interaktivní trénink"],
+    ["Databáze děl", "Profily autorů", "Interaktivní trénink", "Studijní soubory"],
 )
+with st.sidebar.expander("📁 Přehled souborů", expanded=False):
+    st.write(f"Celkem: **{len(MATERIAL_FILES)}**")
+    st.write(f"DOCX: **{len(MATERIAL_CATEGORIES['DOCX'])}**")
+    st.write(f"PDF: **{len(MATERIAL_CATEGORIES['PDF'])}**")
+    st.write(f"HTML: **{len(MATERIAL_CATEGORIES['HTML'])}**")
 
 if mode == "Databáze děl":
     st.header("📖 Databáze literárních děl k maturitě")
@@ -811,6 +874,33 @@ elif mode == "Profily autorů":
             st.write(f"- {item}")
     else:
         st.write("Další díla zatím nejsou doplněna.")
+
+elif mode == "Studijní soubory":
+    st.header("🗂️ Studijní soubory v repozitáři")
+    if not MATERIAL_FILES:
+        st.warning("Ve složce `data` nejsou nalezené žádné podporované soubory.")
+    else:
+        st.caption("Soubory jsou nyní roztříděné ve složkách `data/studijni-materialy` a `data/referencni-soubory`.")
+        selected_label = st.selectbox(
+            "Vyber soubor",
+            [
+                f"{path.relative_to(REPO_ROOT)} ({path.suffix.lower()})"
+                for path in MATERIAL_FILES
+            ],
+        )
+        selected_path = REPO_ROOT / selected_label.split(" (")[0]
+
+        st.write(f"**Cesta:** `{selected_path.relative_to(REPO_ROOT)}`")
+        st.write(f"**Velikost:** {selected_path.stat().st_size / 1024:.1f} KB")
+
+        if selected_path.suffix.lower() == ".docx":
+            st.markdown("### Náhled DOCX")
+            st.info(read_docx_preview(selected_path))
+        elif selected_path.suffix.lower() == ".html":
+            st.markdown("### Náhled HTML")
+            st.info(read_html_preview(selected_path))
+        else:
+            st.info("PDF náhled není dostupný bez doplňkového parseru. Soubor je ale evidovaný v aplikaci.")
 
 else:
     st.header("🎯 Interaktivní trénink k maturitě")
