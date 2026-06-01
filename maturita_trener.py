@@ -520,6 +520,75 @@ def movement_key(movement: str) -> str:
     return movement.split("·")[0].strip()
 
 
+ACHIEVEMENTS = [
+    ("První bod", "Získej první body.", lambda s: s["score"] >= 10),
+    ("Sběratel bodů", "Nasbírej 100 bodů.", lambda s: s["score"] >= 100),
+    ("Rozjetá série", "Udrž sérii 3 správných odpovědí.", lambda s: s["best_streak"] >= 3),
+    ("Maturitní mašina", "Udrž sérii 5 správných odpovědí.", lambda s: s["best_streak"] >= 5),
+    ("Tréninkový dříč", "Odpověz alespoň 10 otázek.", lambda s: s["total_answered"] >= 10),
+]
+
+
+def init_game_state() -> None:
+    defaults = {
+        "score": 0,
+        "xp": 0,
+        "streak": 0,
+        "best_streak": 0,
+        "total_answered": 0,
+        "correct_answers": 0,
+        "unlocked_achievements": [],
+        "last_unlocks": [],
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def player_level(xp: int) -> int:
+    return xp // 100 + 1
+
+
+def points_to_next_level(xp: int) -> int:
+    return 100 - (xp % 100)
+
+
+def unlock_new_achievements() -> list[str]:
+    unlocked = []
+    current = set(st.session_state["unlocked_achievements"])
+    snapshot = {
+        "score": st.session_state["score"],
+        "best_streak": st.session_state["best_streak"],
+        "total_answered": st.session_state["total_answered"],
+    }
+    for name, _, condition in ACHIEVEMENTS:
+        if name not in current and condition(snapshot):
+            current.add(name)
+            unlocked.append(name)
+    st.session_state["unlocked_achievements"] = sorted(current)
+    st.session_state["last_unlocks"] = unlocked
+    return unlocked
+
+
+def reward_result(correct: bool, base_points: int = 20, base_xp: int = 25) -> list[str]:
+    st.session_state["total_answered"] += 1
+    if correct:
+        st.session_state["correct_answers"] += 1
+        st.session_state["streak"] += 1
+        streak_bonus = min(st.session_state["streak"] * 2, 20)
+        st.session_state["score"] += base_points + streak_bonus
+        st.session_state["xp"] += base_xp + streak_bonus
+    else:
+        st.session_state["streak"] = 0
+        st.session_state["score"] = max(0, st.session_state["score"] - 5)
+        st.session_state["xp"] += 5
+
+    st.session_state["best_streak"] = max(
+        st.session_state["best_streak"], st.session_state["streak"]
+    )
+    return unlock_new_achievements()
+
+
 AUTHOR_DATABASE = {
     "Molière": {
         "bio": "Francouzský dramatik klasicismu, mistr komedie mravů. Vystavěl satirické postavy posedlé jednou vášní (lakota, pokrytectví, snobství).",
@@ -745,6 +814,35 @@ elif mode == "Profily autorů":
 
 else:
     st.header("🎯 Interaktivní trénink k maturitě")
+    init_game_state()
+
+    level = player_level(st.session_state["xp"])
+    accuracy = (
+        st.session_state["correct_answers"] / st.session_state["total_answered"]
+        if st.session_state["total_answered"]
+        else 0.0
+    )
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Skóre", st.session_state["score"])
+    m2.metric("Level", level)
+    m3.metric("Série", st.session_state["streak"])
+    m4.metric("Úspěšnost", f"{accuracy * 100:.0f}%")
+
+    st.progress((st.session_state["xp"] % 100) / 100)
+    st.caption(f"Do dalšího levelu zbývá {points_to_next_level(st.session_state['xp'])} XP.")
+
+    if st.session_state["total_answered"] >= 5 and accuracy >= 0.6:
+        st.success("🔥 Denní challenge splněna: 5+ odpovědí a alespoň 60 % úspěšnost.")
+
+    with st.expander("🏅 Úspěchy"):
+        if st.session_state["unlocked_achievements"]:
+            for name, description, _ in ACHIEVEMENTS:
+                if name in st.session_state["unlocked_achievements"]:
+                    st.write(f"✅ **{name}** — {description}")
+        else:
+            st.write("Zatím žádné odemčené úspěchy.")
+
     quiz_mode = st.radio(
         "Typ tréninku",
         ["Poznej dílo podle úryvku", "Zasaď úryvek do děje", "Poznej autora podle díla"],
@@ -767,17 +865,30 @@ else:
         guess = st.radio("Ze kterého díla je úryvek?", options)
         if st.button("Zkontrolovat odpověď", key="check_work"):
             if guess == current["titleClean"]:
+                unlocks = reward_result(True)
                 st.success("✅ Správně.")
             else:
+                unlocks = reward_result(False)
                 st.error(f"❌ Správně je: {current['titleClean']}.")
             st.write(f"**Kontext:** {current['contextClean']}")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
 
     elif quiz_mode == "Zasaď úryvek do děje":
         st.write("Napiš stručně, co se děje před/po úryvku a proč je důležitý.")
         _ = st.text_area("Tvá odpověď")
         if st.button("Porovnat s databází", key="check_context"):
+            st.session_state["total_answered"] += 1
+            st.session_state["score"] += 8
+            st.session_state["xp"] += 12
+            unlocks = unlock_new_achievements()
             st.success(f"Referenční kontext: {current['contextClean']}")
             st.write(f"Rozšířený děj: {current['plotClean']}")
+            st.info("✅ Aktivní trénink odměněn: +8 bodů, +12 XP.")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
 
     else:
         options = [current["authorClean"]]
@@ -793,10 +904,30 @@ else:
         )
         if st.button("Zkontrolovat autora", key="check_author"):
             if guess == current["authorClean"]:
+                unlocks = reward_result(True, base_points=15, base_xp=20)
                 st.success("✅ Správně.")
             else:
+                unlocks = reward_result(False, base_points=15, base_xp=20)
                 st.error(f"❌ Správně je: {current['authorClean']}.")
+            if unlocks:
+                st.balloons()
+                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
 
     if st.button("Načíst další otázku"):
+        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+        st.rerun()
+
+    if st.button("Resetovat progres"):
+        for key in [
+            "score",
+            "xp",
+            "streak",
+            "best_streak",
+            "total_answered",
+            "correct_answers",
+            "unlocked_achievements",
+            "last_unlocks",
+        ]:
+            del st.session_state[key]
         st.session_state.current_q = random.choice(ENRICHED_WORKS)
         st.rerun()
