@@ -866,12 +866,19 @@ def reward_flashcard_result(known: bool) -> list[str]:
     return unlock_new_achievements()
 
 
-def next_kb_card(filtered_cards: list[dict[str, str]], current_id: str | None) -> str | None:
+def next_kb_card(
+    filtered_cards: list[dict[str, str]],
+    current_id: str | None,
+    random_order: bool = False,
+) -> str | None:
     if not filtered_cards:
         return None
     ids = [card["id"] for card in filtered_cards]
     if current_id not in ids:
         return ids[0]
+    if random_order:
+        pool = [item for item in ids if item != current_id]
+        return random.choice(pool) if pool else current_id
     current_index = ids.index(current_id)
     return ids[(current_index + 1) % len(ids)]
 
@@ -881,10 +888,40 @@ MATERIAL_CATEGORIES = build_material_categories(MATERIAL_FILES)
 KB_FLASHCARDS = load_kb_flashcards(FLASHCARD_HTML_PATH)
 
 st.set_page_config(page_title="Maturitní trenér", layout="wide")
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
+    }
+    .block-container {
+        padding-top: 1.25rem;
+    }
+    .hero-card {
+        border-radius: 16px;
+        padding: 1rem 1.2rem;
+        background: linear-gradient(120deg, #4f46e5 0%, #06b6d4 100%);
+        color: white;
+        margin-bottom: 1rem;
+        box-shadow: 0 10px 28px rgba(79, 70, 229, 0.25);
+    }
+    [data-testid="stMetricValue"] {
+        color: #312e81;
+    }
+    button[kind="primary"] {
+        background: linear-gradient(120deg, #4f46e5 0%, #7c3aed 100%);
+        border: 0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.sidebar.title("📚 Navigace")
+mode_options = ["Interaktivní trénink", "Databáze děl", "Profily autorů", "Studijní soubory"]
 mode = st.sidebar.radio(
     "Zvolte režim aplikace:",
-    ["Databáze děl", "Profily autorů", "Interaktivní trénink", "Studijní soubory"],
+    mode_options,
+    index=0,
 )
 with st.sidebar.expander("📁 Přehled souborů", expanded=False):
     st.write(f"Celkem: **{len(MATERIAL_FILES)}**")
@@ -1017,8 +1054,19 @@ elif mode == "Studijní soubory":
         else:
             st.info("PDF náhled není dostupný bez doplňkového parseru. Soubor je ale evidovaný v aplikaci.")
 
-else:
+elif mode == "Interaktivní trénink":
     st.header("🎯 Interaktivní trénink k maturitě")
+    st.markdown(
+        """
+        <div class="hero-card">
+            <h4 style="margin:0;">Gamifikovaný trénink na maturitu</h4>
+            <p style="margin:0.35rem 0 0 0;">
+                Flashcards + kvízy + náhodné výzvy. Trénuj krátce, často a sbírej body, XP i úspěchy.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     init_game_state()
 
     level = player_level(st.session_state["xp"])
@@ -1072,6 +1120,12 @@ else:
                 ["Vše", "Jen neumím / nové"],
                 horizontal=True,
             )
+            order_mode = st.radio(
+                "Pořadí kartiček",
+                ["Postupně", "Náhodně"],
+                horizontal=True,
+            )
+            random_order = order_mode == "Náhodně"
 
             filtered_cards = [
                 card
@@ -1115,29 +1169,69 @@ else:
                 if show_answer:
                     st.success(current["answer"])
 
+                action = None
                 b1, b2, b3, b4 = st.columns(4)
                 if b1.button("✗ Neumím", key=f"dunno_{current['id']}"):
+                    action = "dunno"
+                if b2.button("✓ Umím", key=f"know_{current['id']}"):
+                    action = "know"
+                if b3.button("← Předchozí", key=f"prev_{current['id']}"):
+                    action = "prev"
+                if b4.button("Další →", key=f"next_{current['id']}"):
+                    action = "next"
+
+                shortcut_key = f"kb_shortcut_{current['id']}"
+                shortcut = st.text_input(
+                    "⌨️ Zkratky: u = umím, n = neumím, p = předchozí, d = další, o = odpověď",
+                    key=shortcut_key,
+                    max_chars=1,
+                    help="Napiš zkratku a potvrď Enterem.",
+                ).strip().lower()
+                if shortcut == "u":
+                    action = "know"
+                    st.session_state[shortcut_key] = ""
+                elif shortcut == "n":
+                    action = "dunno"
+                    st.session_state[shortcut_key] = ""
+                elif shortcut == "p":
+                    action = "prev"
+                    st.session_state[shortcut_key] = ""
+                elif shortcut == "d":
+                    action = "next"
+                    st.session_state[shortcut_key] = ""
+                elif shortcut == "o":
+                    st.session_state[f"show_answer_{current['id']}"] = True
+                    st.session_state[shortcut_key] = ""
+                    st.rerun()
+
+                if action == "dunno":
                     st.session_state["kb_ratings"][current["id"]] = "dunno"
                     unlocks = reward_flashcard_result(False)
-                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                    st.session_state["kb_current_id"] = next_kb_card(
+                        filtered_cards, current["id"], random_order=random_order
+                    )
                     if unlocks:
                         st.info("Odemčené úspěchy: " + ", ".join(unlocks))
                     st.rerun()
-                if b2.button("✓ Umím", key=f"know_{current['id']}"):
+                elif action == "know":
                     st.session_state["kb_ratings"][current["id"]] = "know"
                     unlocks = reward_flashcard_result(True)
-                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                    st.session_state["kb_current_id"] = next_kb_card(
+                        filtered_cards, current["id"], random_order=random_order
+                    )
                     if unlocks:
                         st.balloons()
                         st.info("Odemčené úspěchy: " + ", ".join(unlocks))
                     st.rerun()
-                if b3.button("← Předchozí", key=f"prev_{current['id']}"):
+                elif action == "prev":
                     ids = [card["id"] for card in filtered_cards]
                     idx = ids.index(current["id"])
                     st.session_state["kb_current_id"] = ids[idx - 1]
                     st.rerun()
-                if b4.button("Další →", key=f"next_{current['id']}"):
-                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                elif action == "next":
+                    st.session_state["kb_current_id"] = next_kb_card(
+                        filtered_cards, current["id"], random_order=random_order
+                    )
                     st.rerun()
 
                 if st.button("Reset hodnocení kartiček"):
@@ -1148,11 +1242,20 @@ else:
     else:
         quiz_mode = st.radio(
             "Typ literárního tréninku",
-            ["Poznej dílo podle úryvku", "Zasaď úryvek do děje", "Poznej autora podle díla"],
+            [
+                "Poznej dílo podle úryvku",
+                "Zasaď úryvek do děje",
+                "Poznej autora podle díla",
+                "Bleskový mix (náhodná výzva)",
+            ],
         )
 
         if "current_q" not in st.session_state:
             st.session_state.current_q = random.choice(ENRICHED_WORKS)
+        if "quiz_mix_type" not in st.session_state:
+            st.session_state["quiz_mix_type"] = random.choice(
+                ["title_from_excerpt", "author_from_title", "movement_from_work"]
+            )
 
         current = st.session_state.current_q
         st.info(current["excerptClean"])
@@ -1193,7 +1296,7 @@ else:
                     st.balloons()
                     st.info("Odemčené úspěchy: " + ", ".join(unlocks))
 
-        else:
+        elif quiz_mode == "Poznej autora podle díla":
             options = [current["authorClean"]]
             while len(options) < min(4, len(AUTHOR_LIST)):
                 candidate = random.choice(AUTHOR_LIST)
@@ -1215,9 +1318,91 @@ else:
                 if unlocks:
                     st.balloons()
                     st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+        else:
+            mix_type = st.session_state["quiz_mix_type"]
+            st.caption("Každá další otázka náhodně změní typ výzvy.")
+            if mix_type == "title_from_excerpt":
+                options = [current["titleClean"]]
+                while len(options) < min(5, len(ENRICHED_WORKS)):
+                    candidate = random.choice(ENRICHED_WORKS)["titleClean"]
+                    if candidate not in options:
+                        options.append(candidate)
+                random.shuffle(options)
+                guess = st.radio("Jaké je správné dílo?", options, key="mix_title_guess")
+                if st.button("Zkontrolovat mix odpověď", key="check_mix_title"):
+                    if guess == current["titleClean"]:
+                        unlocks = reward_result(True, base_points=18, base_xp=24)
+                        st.success("✅ Správně.")
+                    else:
+                        unlocks = reward_result(False, base_points=18, base_xp=24)
+                        st.error(f"❌ Správně je: {current['titleClean']}.")
+                    if unlocks:
+                        st.balloons()
+                        st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+            elif mix_type == "author_from_title":
+                options = [current["authorClean"]]
+                while len(options) < min(5, len(AUTHOR_LIST)):
+                    candidate = random.choice(AUTHOR_LIST)
+                    if candidate not in options:
+                        options.append(candidate)
+                random.shuffle(options)
+                guess = st.radio(
+                    f"Kdo napsal dílo „{current['titleClean']}“?",
+                    options,
+                    key="mix_author_guess",
+                )
+                if st.button("Zkontrolovat mix odpověď", key="check_mix_author"):
+                    if guess == current["authorClean"]:
+                        unlocks = reward_result(True, base_points=18, base_xp=24)
+                        st.success("✅ Správně.")
+                    else:
+                        unlocks = reward_result(False, base_points=18, base_xp=24)
+                        st.error(f"❌ Správně je: {current['authorClean']}.")
+                    if unlocks:
+                        st.balloons()
+                        st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+            else:
+                options = [current["movementKey"]]
+                while len(options) < min(5, len(MOVEMENT_LIST)):
+                    candidate = random.choice(MOVEMENT_LIST)
+                    if candidate not in options:
+                        options.append(candidate)
+                random.shuffle(options)
+                guess = st.radio(
+                    f"Do jakého směru patří „{current['titleClean']}“?",
+                    options,
+                    key="mix_movement_guess",
+                )
+                if st.button("Zkontrolovat mix odpověď", key="check_mix_movement"):
+                    if guess == current["movementKey"]:
+                        unlocks = reward_result(True, base_points=18, base_xp=24)
+                        st.success("✅ Správně.")
+                    else:
+                        unlocks = reward_result(False, base_points=18, base_xp=24)
+                        st.error(f"❌ Správně je: {current['movementKey']}.")
+                    if unlocks:
+                        st.balloons()
+                        st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+        quiz_shortcut = st.text_input(
+            "⌨️ Kvízové zkratky: c = další otázka",
+            key=f"quiz_shortcut_{quiz_mode}",
+            max_chars=1,
+            help="Napiš zkratku a potvrď Enterem.",
+        ).strip().lower()
+        if quiz_shortcut == "c":
+            st.session_state[f"quiz_shortcut_{quiz_mode}"] = ""
+            st.session_state.current_q = random.choice(ENRICHED_WORKS)
+            st.session_state["quiz_mix_type"] = random.choice(
+                ["title_from_excerpt", "author_from_title", "movement_from_work"]
+            )
+            st.rerun()
 
         if st.button("Načíst další otázku"):
             st.session_state.current_q = random.choice(ENRICHED_WORKS)
+            st.session_state["quiz_mix_type"] = random.choice(
+                ["title_from_excerpt", "author_from_title", "movement_from_work"]
+            )
             st.rerun()
 
     if st.button("Resetovat progres"):
