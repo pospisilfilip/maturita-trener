@@ -1,6 +1,7 @@
 import streamlit as st
 import random
 import re
+import json
 from pathlib import Path
 import zipfile
 import xml.etree.ElementTree as ET
@@ -713,6 +714,7 @@ MOVEMENT_LIST = sorted({w["movementKey"] for w in ENRICHED_WORKS})
 REPO_ROOT = Path(__file__).resolve().parent
 MATERIALS_ROOT = REPO_ROOT / "data"
 SUPPORTED_SUFFIXES = {".docx", ".pdf", ".html"}
+FLASHCARD_HTML_PATH = MATERIALS_ROOT / "referencni-soubory" / "Maturitni_karticky_625.html"
 
 
 def collect_material_files() -> list[Path]:
@@ -763,8 +765,120 @@ def read_html_preview(file_path: Path, max_chars: int = 1500) -> str:
         return "Náhled se nepodařilo načíst."
 
 
+@st.cache_data(show_spinner=False)
+def load_kb_flashcards(file_path: Path) -> list[dict[str, str]]:
+    if not file_path.exists():
+        return []
+
+    def extract_balanced_block(text: str, start_index: int, opener: str, closer: str) -> str:
+        depth = 0
+        in_string = False
+        escaped = False
+        for idx in range(start_index, len(text)):
+            char = text[idx]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+                continue
+            if char == opener:
+                depth += 1
+            elif char == closer:
+                depth -= 1
+                if depth == 0:
+                    return text[start_index : idx + 1]
+        return ""
+
+    def js_string_to_text(value: str) -> str:
+        try:
+            return json.loads(f'"{value}"')
+        except Exception:
+            return value.replace(r"\\", "\\").replace(r"\"", '"').replace(r"\n", "\n")
+
+    try:
+        raw = file_path.read_text(encoding="utf-8", errors="ignore")
+        marker = "const DECK ="
+        if marker not in raw:
+            return []
+        start = raw.index(marker)
+        array_start = raw.index("[", start)
+        deck_literal = extract_balanced_block(raw, array_start, "[", "]")
+        if not deck_literal:
+            return []
+    except Exception:
+        return []
+
+    cards: list[dict[str, str]] = []
+    object_pattern = re.compile(r"\{.*?\}", re.DOTALL)
+    topic_pattern = re.compile(r't\s*:\s*"((?:\\.|[^"\\])*)"')
+    pair_pattern = re.compile(r'\[\s*"((?:\\.|[^"\\])*)"\s*,\s*"((?:\\.|[^"\\])*)"\s*\]', re.DOTALL)
+
+    for topic_idx, topic_block in enumerate(object_pattern.findall(deck_literal)):
+        topic_match = topic_pattern.search(topic_block)
+        topic = js_string_to_text(topic_match.group(1)).strip() if topic_match else "Nezařazené"
+
+        cards_index = topic_block.find("cards")
+        if cards_index == -1:
+            continue
+        array_start = topic_block.find("[", cards_index)
+        if array_start == -1:
+            continue
+        cards_literal = extract_balanced_block(topic_block, array_start, "[", "]")
+        if not cards_literal:
+            continue
+
+        for card_idx, (question_raw, answer_raw) in enumerate(pair_pattern.findall(cards_literal)):
+            question = js_string_to_text(question_raw).strip()
+            answer = js_string_to_text(answer_raw).strip()
+            if not question or not answer:
+                continue
+            cards.append(
+                {
+                    "id": f"kb-{topic_idx}-{card_idx}",
+                    "topic": topic,
+                    "question": question,
+                    "answer": answer,
+                }
+            )
+    return cards
+
+
+def reward_flashcard_result(known: bool) -> list[str]:
+    st.session_state["total_answered"] += 1
+    if known:
+        st.session_state["correct_answers"] += 1
+        st.session_state["streak"] += 1
+        streak_bonus = min(st.session_state["streak"] * 2, 20)
+        st.session_state["score"] += 10 + streak_bonus
+        st.session_state["xp"] += 12 + streak_bonus
+    else:
+        st.session_state["streak"] = 0
+        st.session_state["xp"] += 6
+    st.session_state["best_streak"] = max(
+        st.session_state["best_streak"], st.session_state["streak"]
+    )
+    return unlock_new_achievements()
+
+
+def next_kb_card(filtered_cards: list[dict[str, str]], current_id: str | None) -> str | None:
+    if not filtered_cards:
+        return None
+    ids = [card["id"] for card in filtered_cards]
+    if current_id not in ids:
+        return ids[0]
+    current_index = ids.index(current_id)
+    return ids[(current_index + 1) % len(ids)]
+
+
 MATERIAL_FILES = collect_material_files()
 MATERIAL_CATEGORIES = build_material_categories(MATERIAL_FILES)
+KB_FLASHCARDS = load_kb_flashcards(FLASHCARD_HTML_PATH)
 
 st.set_page_config(page_title="Maturitní trenér", layout="wide")
 st.sidebar.title("📚 Navigace")
@@ -881,14 +995,15 @@ elif mode == "Studijní soubory":
         st.warning("Ve složce `data` nejsou nalezené žádné podporované soubory.")
     else:
         st.caption("Soubory jsou nyní roztříděné ve složkách `data/studijni-materialy` a `data/referencni-soubory`.")
+        label_to_path = {
+            f"{path.relative_to(REPO_ROOT)} ({path.suffix.lower()})": path
+            for path in MATERIAL_FILES
+        }
         selected_label = st.selectbox(
             "Vyber soubor",
-            [
-                f"{path.relative_to(REPO_ROOT)} ({path.suffix.lower()})"
-                for path in MATERIAL_FILES
-            ],
+            list(label_to_path.keys()),
         )
-        selected_path = REPO_ROOT / selected_label.split(" (")[0]
+        selected_path = label_to_path[selected_label]
 
         st.write(f"**Cesta:** `{selected_path.relative_to(REPO_ROOT)}`")
         st.write(f"**Velikost:** {selected_path.stat().st_size / 1024:.1f} KB")
@@ -933,79 +1048,177 @@ else:
         else:
             st.write("Zatím žádné odemčené úspěchy.")
 
-    quiz_mode = st.radio(
-        "Typ tréninku",
-        ["Poznej dílo podle úryvku", "Zasaď úryvek do děje", "Poznej autora podle díla"],
+    training_source = st.radio(
+        "Zdroj tréninku",
+        ["Kartičky KB / právo / ekonomika", "Literární trénink"],
+        horizontal=True,
     )
 
-    if "current_q" not in st.session_state:
-        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+    if training_source == "Kartičky KB / právo / ekonomika":
+        if not KB_FLASHCARDS:
+            st.error(
+                "Soubor `Maturitni_karticky_625.html` se nepodařilo načíst. Zkontroluj cestu v `data/referencni-soubory`."
+            )
+        else:
+            if "kb_ratings" not in st.session_state:
+                st.session_state["kb_ratings"] = {}
+            if "kb_current_id" not in st.session_state:
+                st.session_state["kb_current_id"] = KB_FLASHCARDS[0]["id"]
 
-    current = st.session_state.current_q
-    st.info(current["excerptClean"])
+            kb_topics = ["Všechny okruhy"] + sorted({card["topic"] for card in KB_FLASHCARDS})
+            selected_topic = st.selectbox("Okruh kartiček", kb_topics)
+            review_filter = st.radio(
+                "Filtr kartiček",
+                ["Vše", "Jen neumím / nové"],
+                horizontal=True,
+            )
 
-    if quiz_mode == "Poznej dílo podle úryvku":
-        options = [current["titleClean"]]
-        while len(options) < min(4, len(ENRICHED_WORKS)):
-            candidate = random.choice(ENRICHED_WORKS)["titleClean"]
-            if candidate not in options:
-                options.append(candidate)
-        random.shuffle(options)
+            filtered_cards = [
+                card
+                for card in KB_FLASHCARDS
+                if selected_topic == "Všechny okruhy" or card["topic"] == selected_topic
+            ]
+            if review_filter == "Jen neumím / nové":
+                filtered_cards = [
+                    card
+                    for card in filtered_cards
+                    if st.session_state["kb_ratings"].get(card["id"], "new") != "know"
+                ]
 
-        guess = st.radio("Ze kterého díla je úryvek?", options)
-        if st.button("Zkontrolovat odpověď", key="check_work"):
-            if guess == current["titleClean"]:
-                unlocks = reward_result(True)
-                st.success("✅ Správně.")
+            if not filtered_cards:
+                st.warning("Po vybraném filtru nejsou dostupné žádné kartičky.")
             else:
-                unlocks = reward_result(False)
-                st.error(f"❌ Správně je: {current['titleClean']}.")
-            st.write(f"**Kontext:** {current['contextClean']}")
-            if unlocks:
-                st.balloons()
-                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+                if st.session_state["kb_current_id"] not in {card["id"] for card in filtered_cards}:
+                    st.session_state["kb_current_id"] = filtered_cards[0]["id"]
 
-    elif quiz_mode == "Zasaď úryvek do děje":
-        st.write("Napiš stručně, co se děje před/po úryvku a proč je důležitý.")
-        _ = st.text_area("Tvá odpověď")
-        if st.button("Porovnat s databází", key="check_context"):
-            st.session_state["total_answered"] += 1
-            st.session_state["score"] += 8
-            st.session_state["xp"] += 12
-            unlocks = unlock_new_achievements()
-            st.success(f"Referenční kontext: {current['contextClean']}")
-            st.write(f"Rozšířený děj: {current['plotClean']}")
-            st.info("✅ Aktivní trénink odměněn: +8 bodů, +12 XP.")
-            if unlocks:
-                st.balloons()
-                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+                current = next(
+                    card for card in filtered_cards if card["id"] == st.session_state["kb_current_id"]
+                )
+                card_number = (
+                    [card["id"] for card in filtered_cards].index(st.session_state["kb_current_id"]) + 1
+                )
+
+                know_count = sum(v == "know" for v in st.session_state["kb_ratings"].values())
+                dunno_count = sum(v == "dunno" for v in st.session_state["kb_ratings"].values())
+                new_count = max(0, len(KB_FLASHCARDS) - know_count - dunno_count)
+                progress = (know_count / len(KB_FLASHCARDS)) if KB_FLASHCARDS else 0.0
+
+                st.caption(f"Karta {card_number}/{len(filtered_cards)} · Okruh: {current['topic']}")
+                st.progress(progress)
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Umím", know_count)
+                c2.metric("Neumím", dunno_count)
+                c3.metric("Nové", new_count)
+
+                st.info(current["question"])
+                show_answer = st.checkbox("Zobrazit odpověď", key=f"show_answer_{current['id']}")
+                if show_answer:
+                    st.success(current["answer"])
+
+                b1, b2, b3, b4 = st.columns(4)
+                if b1.button("✗ Neumím", key=f"dunno_{current['id']}"):
+                    st.session_state["kb_ratings"][current["id"]] = "dunno"
+                    unlocks = reward_flashcard_result(False)
+                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                    if unlocks:
+                        st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+                    st.rerun()
+                if b2.button("✓ Umím", key=f"know_{current['id']}"):
+                    st.session_state["kb_ratings"][current["id"]] = "know"
+                    unlocks = reward_flashcard_result(True)
+                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                    if unlocks:
+                        st.balloons()
+                        st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+                    st.rerun()
+                if b3.button("← Předchozí", key=f"prev_{current['id']}"):
+                    ids = [card["id"] for card in filtered_cards]
+                    idx = ids.index(current["id"])
+                    st.session_state["kb_current_id"] = ids[idx - 1]
+                    st.rerun()
+                if b4.button("Další →", key=f"next_{current['id']}"):
+                    st.session_state["kb_current_id"] = next_kb_card(filtered_cards, current["id"])
+                    st.rerun()
+
+                if st.button("Reset hodnocení kartiček"):
+                    st.session_state["kb_ratings"] = {}
+                    st.session_state["kb_current_id"] = filtered_cards[0]["id"]
+                    st.rerun()
 
     else:
-        options = [current["authorClean"]]
-        while len(options) < min(4, len(AUTHOR_LIST)):
-            candidate = random.choice(AUTHOR_LIST)
-            if candidate not in options:
-                options.append(candidate)
-        random.shuffle(options)
-
-        guess = st.radio(
-            f"Kdo je autorem díla '{current['titleClean']}'?",
-            options,
+        quiz_mode = st.radio(
+            "Typ literárního tréninku",
+            ["Poznej dílo podle úryvku", "Zasaď úryvek do děje", "Poznej autora podle díla"],
         )
-        if st.button("Zkontrolovat autora", key="check_author"):
-            if guess == current["authorClean"]:
-                unlocks = reward_result(True, base_points=15, base_xp=20)
-                st.success("✅ Správně.")
-            else:
-                unlocks = reward_result(False, base_points=15, base_xp=20)
-                st.error(f"❌ Správně je: {current['authorClean']}.")
-            if unlocks:
-                st.balloons()
-                st.info("Odemčené úspěchy: " + ", ".join(unlocks))
 
-    if st.button("Načíst další otázku"):
-        st.session_state.current_q = random.choice(ENRICHED_WORKS)
-        st.rerun()
+        if "current_q" not in st.session_state:
+            st.session_state.current_q = random.choice(ENRICHED_WORKS)
+
+        current = st.session_state.current_q
+        st.info(current["excerptClean"])
+
+        if quiz_mode == "Poznej dílo podle úryvku":
+            options = [current["titleClean"]]
+            while len(options) < min(4, len(ENRICHED_WORKS)):
+                candidate = random.choice(ENRICHED_WORKS)["titleClean"]
+                if candidate not in options:
+                    options.append(candidate)
+            random.shuffle(options)
+
+            guess = st.radio("Ze kterého díla je úryvek?", options)
+            if st.button("Zkontrolovat odpověď", key="check_work"):
+                if guess == current["titleClean"]:
+                    unlocks = reward_result(True)
+                    st.success("✅ Správně.")
+                else:
+                    unlocks = reward_result(False)
+                    st.error(f"❌ Správně je: {current['titleClean']}.")
+                st.write(f"**Kontext:** {current['contextClean']}")
+                if unlocks:
+                    st.balloons()
+                    st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+        elif quiz_mode == "Zasaď úryvek do děje":
+            st.write("Napiš stručně, co se děje před/po úryvku a proč je důležitý.")
+            _ = st.text_area("Tvá odpověď")
+            if st.button("Porovnat s databází", key="check_context"):
+                st.session_state["total_answered"] += 1
+                st.session_state["score"] += 8
+                st.session_state["xp"] += 12
+                unlocks = unlock_new_achievements()
+                st.success(f"Referenční kontext: {current['contextClean']}")
+                st.write(f"Rozšířený děj: {current['plotClean']}")
+                st.info("✅ Aktivní trénink odměněn: +8 bodů, +12 XP.")
+                if unlocks:
+                    st.balloons()
+                    st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+        else:
+            options = [current["authorClean"]]
+            while len(options) < min(4, len(AUTHOR_LIST)):
+                candidate = random.choice(AUTHOR_LIST)
+                if candidate not in options:
+                    options.append(candidate)
+            random.shuffle(options)
+
+            guess = st.radio(
+                f"Kdo je autorem díla '{current['titleClean']}'?",
+                options,
+            )
+            if st.button("Zkontrolovat autora", key="check_author"):
+                if guess == current["authorClean"]:
+                    unlocks = reward_result(True, base_points=15, base_xp=20)
+                    st.success("✅ Správně.")
+                else:
+                    unlocks = reward_result(False, base_points=15, base_xp=20)
+                    st.error(f"❌ Správně je: {current['authorClean']}.")
+                if unlocks:
+                    st.balloons()
+                    st.info("Odemčené úspěchy: " + ", ".join(unlocks))
+
+        if st.button("Načíst další otázku"):
+            st.session_state.current_q = random.choice(ENRICHED_WORKS)
+            st.rerun()
 
     if st.button("Resetovat progres"):
         for key in [
@@ -1018,6 +1231,12 @@ else:
             "unlocked_achievements",
             "last_unlocks",
         ]:
-            del st.session_state[key]
-        st.session_state.current_q = random.choice(ENRICHED_WORKS)
+            if key in st.session_state:
+                del st.session_state[key]
+        if "current_q" in st.session_state:
+            del st.session_state["current_q"]
+        if "kb_ratings" in st.session_state:
+            del st.session_state["kb_ratings"]
+        if "kb_current_id" in st.session_state:
+            del st.session_state["kb_current_id"]
         st.rerun()
